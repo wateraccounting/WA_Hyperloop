@@ -4,13 +4,13 @@ Created on Mon Oct 24 10:06:46 2016
 
 @author: Bert Coerver (b.coerver[at]unesco-ihe.org)
 """
-import becgis
+import WA_Hyperloop.becgis as becgis
 import numpy as np
 import os
 import csv
 import matplotlib.pyplot as plt
 from scipy import ndimage
-import get_dictionaries as gd
+import WA_Hyperloop.get_dictionaries as gd
 import wa
 
 def create_sheet2(data, metadata, output_dir):

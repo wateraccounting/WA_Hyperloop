@@ -5,7 +5,7 @@ Created on Tue Nov 15 14:21:43 2016
 @author: bec
 """
 import os
-import becgis
+import WA_Hyperloop.becgis as becgis
 from dateutil.relativedelta import relativedelta
 import datetime
 import numpy as np
@@ -15,7 +15,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import csv
-import get_dictionaries as gd
+import WA_Hyperloop.get_dictionaries as gd
 import wa
 
 def create_sheet3(complete_data, metadata, output_dir):

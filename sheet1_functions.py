@@ -4,7 +4,7 @@ Created on Mon Oct 31 12:11:04 2016
 
 @author: bec
 """
-import becgis
+import WA_Hyperloop.becgis as becgis
 import os
 import numpy as np
 import csv
@@ -14,9 +14,9 @@ import tempfile
 from scipy import interpolate
 import pandas as pd
 import glob
-import get_dictionaries as gd
-import sheet4_functions as sh4
-import pairwise_validation as pwv
+import WA_Hyperloop.get_dictionaries as gd
+import WA_Hyperloop.sheet4_functions as sh4
+import WA_Hyperloop.pairwise_validation as pwv
 import wa
 import calendar
 import shutil

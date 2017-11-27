@@ -4,12 +4,12 @@ Created on Thu Sep 14 14:52:31 2017
 
 @author: bec
 """
-import sheet1_functions as sh1
-import sheet2_functions as sh2
-import sheet3_functions as sh3
-import sheet4_functions as sh4
-import sheet5_functions as sh5
-import hyperloop as hl
+import WA_Hyperloop.sheet1_functions as sh1
+import WA_Hyperloop.sheet2_functions as sh2
+import WA_Hyperloop.sheet3_functions as sh3
+import WA_Hyperloop.sheet4_functions as sh4
+import WA_Hyperloop.sheet5_functions as sh5
+import WA_Hyperloop.hyperloop as hl
 
 ###
 # Define basin specific parameters

@@ -13,9 +13,9 @@ import csv
 import wa.General.raster_conversions as RC
 import wa.General.data_conversions as DC
 
-import sheet3_functions as sh3
+import WA_Hyperloop.sheet3_functions as sh3
 
-import becgis
+import WA_Hyperloop.becgis as becgis
 #%%
 ## PROVISIONING SERVICES
 def mm_to_km3(lu_fh,var_fhs):

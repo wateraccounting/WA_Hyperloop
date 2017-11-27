@@ -9,9 +9,9 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 import subprocess
 import csv
-import sheet4_functions as sh4
+import WA_Hyperloop.sheet4_functions as sh4
 import datetime
-import becgis
+import WA_Hyperloop.becgis as becgis
 import matplotlib.pyplot as plt
 from scipy import interpolate
 import numpy as np

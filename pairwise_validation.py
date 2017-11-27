@@ -7,7 +7,7 @@ Created on Fri May 27 13:32:47 2016
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import becgis
+import WA_Hyperloop.becgis as becgis
 from scipy import interpolate
 import csv
 import gdal

@@ -5,7 +5,7 @@ Created on Tue Dec 13 16:55:04 2016
 @author: bec
 """
 import os
-import becgis
+import WA_Hyperloop.becgis as becgis
 import numpy as np
 import matplotlib.pyplot as plt
 import gdal
@@ -19,8 +19,8 @@ import datetime
 import calendar
 import subprocess
 import tempfile as tf
-import get_dictionaries as gd
-import sheet6_functions as sh6
+import WA_Hyperloop.get_dictionaries as gd
+import WA_Hyperloop.sheet6_functions as sh6
 
 def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     

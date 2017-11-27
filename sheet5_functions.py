@@ -12,11 +12,11 @@ import csv
 import datetime
 import pandas as pd
 import wa.General.raster_conversions as RC
-import sheet1_functions as sh1
-import becgis
+import WA_Hyperloop.sheet1_functions as sh1
+import WA_Hyperloop.becgis as becgis
 import xml.etree.ElementTree as ET
-import sheet4_functions as sh4
-import sheet7_functions as sh7
+import WA_Hyperloop.sheet4_functions as sh4
+import WA_Hyperloop.sheet7_functions as sh7
 import subprocess
 
 def create_sheet5(complete_data, metadata, output_dir, global_data, template = r"C:\Users\bec\Dropbox\UNESCO\Scripts\claire\sheet5\sheet5_blank_template_new.svg"):
