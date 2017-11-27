@@ -15,8 +15,8 @@ import wa.General.raster_conversions as RC
 import WA_Hyperloop.sheet1_functions as sh1
 import WA_Hyperloop.becgis as becgis
 import xml.etree.ElementTree as ET
-import WA_Hyperloop.sheet4_functions as sh4
-import WA_Hyperloop.sheet7_functions as sh7
+from WA_Hyperloop.sheet4_functions import sheet4_functions as sh4
+from WA_Hyperloop.sheet7_functions import sheet7_functions as sh7
 import subprocess
 
 def create_sheet5(complete_data, metadata, output_dir, global_data, template = r"C:\Users\bec\Dropbox\UNESCO\Scripts\claire\sheet5\sheet5_blank_template_new.svg"):

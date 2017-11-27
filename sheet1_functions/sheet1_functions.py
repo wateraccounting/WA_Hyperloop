@@ -15,7 +15,7 @@ from scipy import interpolate
 import pandas as pd
 import glob
 import WA_Hyperloop.get_dictionaries as gd
-import WA_Hyperloop.sheet4_functions as sh4
+from WA_Hyperloop.sheet4_functions import sheet4_functions as sh4
 import WA_Hyperloop.pairwise_validation as pwv
 import wa
 import calendar

@@ -13,7 +13,7 @@ import csv
 import wa.General.raster_conversions as RC
 import wa.General.data_conversions as DC
 
-import WA_Hyperloop.sheet3_functions as sh3
+from WA_Hyperloop.sheet3_functions import sheet3_functions as sh3
 
 import WA_Hyperloop.becgis as becgis
 #%%
