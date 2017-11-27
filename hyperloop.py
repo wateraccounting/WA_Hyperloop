@@ -6,16 +6,16 @@ Created on Fri Oct 13 13:28:17 2017
 """
 import os
 import WA_Hyperloop.becgis as becgis
-import WA_Hyperloop.sheet5_functions as sh5
-import WA_Hyperloop.sheet2_functions as sh2
-import WA_Hyperloop.sheet3_functions as sh3
+from WA_Hyperloop.sheet5_functions import sheet5_functions as sh5
+from WA_Hyperloop.sheet2_functions import sheet2_functions as sh2
+from WA_Hyperloop.sheet3_functions import sheet3_functions as sh3
 import WA_Hyperloop.get_dictionaries as gd
 import glob
 import davgis
 import netCDF4
 import wa.Generator.Sheet5.main as Sheet5
 from shutil import copyfile
-import WA_Hyperloop.sheet1_functions as sh1
+from WA_Hyperloop.sheet1_functions import sheet1_functions as sh1
 import matplotlib.pyplot as plt
 import numpy as np
 
