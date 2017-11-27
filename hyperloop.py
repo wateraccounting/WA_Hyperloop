@@ -18,6 +18,11 @@ from shutil import copyfile
 from WA_Hyperloop.sheet1_functions import sheet1_functions as sh1
 import matplotlib.pyplot as plt
 import numpy as np
+import WA_Hyperloop.pairwise_validation as pwv
+import ogr
+import wa.General.raster_conversions as RC
+import subprocess
+import wa.General.data_conversions as LA
 
 def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
 
@@ -82,7 +87,8 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
     plt.scatter(et_y, et)
     plt.xlabel('ETens [km3/month]')
     plt.ylabel('Sheet1 [km3/month]')
-    plt.title('EVAPO, SCORE = {0}'.format(np.sum(et_y) - np.sum(et)))
+    nash = pwv.nash_sutcliffe(et_y, et)
+    plt.title('EVAPO, NS = {0}'.format(nash))
     plt.savefig(os.path.join(output_dir, "CHECK_ET.jpg"))
     
     ##
@@ -94,20 +100,27 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
     plt.scatter(p_y, p)
     plt.xlabel('CHIRPS [km3/month]')
     plt.ylabel('Sheet1 [km3/month]')
-    plt.title('PRECIPITATION, SCORE = {0}'.format(np.sum(p_y) - np.sum(p)))
+    nash = pwv.nash_sutcliffe(p_y, p)
+    plt.title('PRECIPITATION, NS = {0}'.format(nash))
     plt.savefig(os.path.join(output_dir, "CHECK_P.jpg"))
     
     ##
     # CHECK Q
     ##
+    correction = calc_missing_runoff_fractions(metadata)['full']
+    
     plt.figure(4)
     plt.clf()
     q = sh1.get_ts(all_results, 'q_out_sw') -  sh1.get_ts(all_results, 'q_in_sw')  +  sh1.get_ts(all_results, 'q_out_gw')  -  sh1.get_ts(all_results, 'q_in_gw') +  sh1.get_ts(all_results, 'q_outflow') - sh1.get_ts(all_results, 'q_in_desal')
-    plt.scatter(ro_y, q)
+    plt.scatter(ro_y, q, label = 'original')
+    plt.scatter(ro_y * correction, q, label = 'corrected')
+    plt.legend()
     plt.xlabel('Waterpix_runoff [km3/month]')
     plt.ylabel('Sheet1 [km3/month]')
-    plt.title('RUNOFF, SCORE = {0}'.format(np.sum(ro_y) - np.sum(q)))
-    plt.savefig(os.path.join(output_dir, "CHECK_Q.jpg"))
+    nash = pwv.nash_sutcliffe(ro_y, q)
+    nash2 = pwv.nash_sutcliffe(ro_y * correction, q)
+    plt.title('RUNOFF, NS = {0}, {1}'.format(nash, nash2))
+    plt.savefig(os.path.join(output_dir, "CHECK_Q.jpg"))  
     
     ###
     # CHECK dS
@@ -115,10 +128,11 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
     plt.figure(5)
     plt.clf()
     ds = sh1.get_ts(all_results, 'dS')
-    plt.scatter(np.cumsum(balance), np.cumsum(ds) * -1)
+    plt.scatter(balance, ds * -1)
     plt.xlabel('CHIRPS, ETens, WPrunoff [km3/month]')
     plt.ylabel('Sheet1')
-    plt.title('dS, SCORE = {0}'.format(np.sum(np.cumsum(balance)) - np.sum(np.cumsum(ds) * -1)))
+    nash = pwv.nash_sutcliffe(balance, ds * -1)
+    plt.title('dS, NS = {0}'.format(nash))
     plt.savefig(os.path.join(output_dir, "CHECK_dS.jpg"))
     
     ###
@@ -144,10 +158,6 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
     plt.savefig(os.path.join(output_dir, "CHECK_WB.jpg"))
     
 def prepareSurfWatLoop(data, global_data):
-    """
-    
-    
-    """
 
     data_needed = ["etref_folder", "et_folder", "p_folder"]
 
@@ -293,7 +303,8 @@ def sort_data_short(output_dir, metadata):
     data_2dict = {'SUPPLYsw': 'supply_sw',
                   'RETURNFLOW_gwsw': 'return_flow_gw_sw',
                   'RETURNFLOW_swsw': 'return_flow_sw_sw',
-                  r'fractions\fractions': 'fractions'}
+                  r'fractions\fractions': 'fractions'
+                  }
 
     for datatype in data_2:
         try:
@@ -354,3 +365,105 @@ def SortWaterPix(nc, variable, output_folder):
                                 crs=spa_ref,
                                 time={'variable': 'time_yyyymm', 'value': time_value})
     return output_dir
+
+def calc_missing_runoff_fractions(metadata):
+    
+    ID = metadata['id']
+    accum = r"D:\WA_HOME\Loop_SW\Simulations\Simulation_{0}\Sheet_5\Acc_Pixels_CR_Simulation{0}_.nc".format(ID)
+    
+    outlets = r"D:\project_ADB\subproject_Catchment_Map\outlets\Basins_outlets_basin_{0}.shp".format(ID)
+    inlets = r"D:\project_ADB\subproject_Catchment_Map\inlets\Basins_inlets_basin_{0}.shp".format(ID)
+    
+    basin_mask = r"D:\WA_HOME\Loop_SW\Simulations\Simulation_{0}\Sheet_5\Basin_CR_Simulation{0}_.nc".format(ID)
+    
+    sb_vector = r"D:/project_ADB/subproject_Catchment_Map/Basins_large/Subbasins_dissolved/dissolved_ID{0}.shp".format(ID)
+    
+    dico_in = metadata['dico_in']
+    dico_out =  metadata['dico_out']
+
+    output_fh =  r"C:\Users\bec\Desktop\03_test\empty.tif"
+    
+    geo_out, epsg, size_X, size_Y, size_Z, Time = RC.Open_nc_info(basin_mask)
+    
+    LA.Save_as_tiff(output_fh, np.zeros((size_Y, size_X)), geo_out, epsg)
+          
+    string = "gdal_rasterize -a Subbasins {0} {1}".format(sb_vector, output_fh)
+    
+    proc = subprocess.Popen(string, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = proc.communicate()
+    
+    subs = becgis.OpenAsArray(output_fh, nan_values = True)
+    total_size = np.nansum(subs[subs != 0] / subs[subs != 0])
+    
+    sizes = dict()
+    total_out = dict()
+    total_in = dict()
+    ratios = dict()
+    
+    accumsin_boundary = list()
+    accumsout_boundary = list()
+    
+    for sb in np.unique(subs[subs!=0]):
+        
+        sizes[sb] = np.nansum(subs[subs == sb]) / sb
+        
+    #%%
+        accumsin = list()
+        accumsout = list()
+        
+        nc = netCDF4.Dataset(accum)
+        driver = ogr.GetDriverByName('ESRI Shapefile')
+        dataSource = driver.Open(outlets, 0)
+        layer = dataSource.GetLayer()
+        featureCount = layer.GetFeatureCount()
+        for pt in range(featureCount):
+            feature = layer.GetFeature(pt)
+            subbasin = feature.GetField("id")
+            if sb == int(subbasin):
+                geometry = feature.GetGeometryRef()
+                x = geometry.GetX()
+                y = geometry.GetY()
+                pos_x = (np.abs(nc.variables['longitude'][:]-x)).argmin()
+                pos_y = (np.abs(nc.variables['latitude'][:]-y)).argmin()
+                accumsout.append(nc.variables['Acc_Pixels_CR'][pos_y,pos_x])
+                if 0 in dico_out[sb]:
+                    accumsout_boundary.append(nc.variables['Acc_Pixels_CR'][pos_y,pos_x])
+            if subbasin in dico_in[sb]:
+                geometry = feature.GetGeometryRef()
+                x = geometry.GetX()
+                y = geometry.GetY()
+                pos_x = (np.abs(nc.variables['longitude'][:]-x)).argmin()
+                pos_y = (np.abs(nc.variables['latitude'][:]-y)).argmin()
+                accumsin.append(nc.variables['Acc_Pixels_CR'][pos_y,pos_x])     
+                
+        total_out[sb] = np.sum(accumsout)
+        
+        if os.path.exists(inlets):
+            
+            nc = netCDF4.Dataset(accum)
+            driver = ogr.GetDriverByName('ESRI Shapefile')
+            dataSource = driver.Open(inlets, 0)
+            layer = dataSource.GetLayer()
+            featureCount = layer.GetFeatureCount()
+            for pt in range(featureCount):
+                feature = layer.GetFeature(pt)
+                subbasin = feature.GetField("id")
+                if sb == int(subbasin):
+                    geometry = feature.GetGeometryRef()
+                    x = geometry.GetX()
+                    y = geometry.GetY()
+                    pos_x = (np.abs(nc.variables['longitude'][:]-x)).argmin()
+                    pos_y = (np.abs(nc.variables['latitude'][:]-y)).argmin()
+                    accumsin.append(nc.variables['Acc_Pixels_CR'][pos_y,pos_x])
+                    accumsin_boundary.append(nc.variables['Acc_Pixels_CR'][pos_y,pos_x])
+        
+        if len(accumsin) >= 1:
+            total_in[sb] = np.sum(accumsin)
+        else:
+            total_in[sb] = 0.0
+        
+        ratios[sb] = (total_out[sb] - total_in[sb]) / sizes[sb]
+    
+    ratios['full'] = (np.sum(accumsout_boundary) - np.sum(accumsin_boundary)) / total_size
+        
+    return ratios

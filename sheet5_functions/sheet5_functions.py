@@ -12,7 +12,7 @@ import csv
 import datetime
 import pandas as pd
 import wa.General.raster_conversions as RC
-import WA_Hyperloop.sheet1_functions as sh1
+from WA_Hyperloop.sheet1_functions import sheet1_functions as sh1
 import WA_Hyperloop.becgis as becgis
 import xml.etree.ElementTree as ET
 from WA_Hyperloop.sheet4_functions import sheet4_functions as sh4
@@ -121,15 +121,45 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, template = r
     return_sw_sw_fhs = sh7.mm_to_km3(lu_fh,return_sw_sw_fhs)
     
     #%% Outflow
-    discharge, subbasins = discharge_at_points(outlets,metadata['SWfile'], date_list)
-
-    discharge_sum = {}
+#    discharge, subbasins = discharge_at_points(outlets,metadata['SWfile'], date_list)
+#    
+#    discharge_sum = {}
+#    
+#    for i in range(len(sb_names)):
+#        sb  = sb_names[i]
+#        sb_code = sb_codes[i]
+#        discharge_sum[sb_code]=np.sum(np.array([discharge[j]/1000000000. for j in range(len(discharge)) if subbasins[j]==sb]),axis = 0)
+#    
+#    import matplotlib.pyplot as plt
+#    plt.plot(discharge_sum['1'], label='1')
     
-    for i in range(len(sb_names)):
-        sb  = sb_names[i]
-        sb_code = sb_codes[i]
-        discharge_sum[sb_code]=np.sum(np.array([discharge[j]/1000000000. for j in range(len(discharge)) if subbasins[j]==sb]),axis = 0)
+    discharge_out_from_wp = True
+    
+    if discharge_out_from_wp:
         
+        discharge_sum = dict()
+        subbasins2 = list()
+        
+        for temp_sb, sb_code in zip(sb_fhs, sb_codes):
+            
+            subbasins2.append(sb_name)
+            arr = np.array([])
+            
+            mask = becgis.OpenAsArray(temp_sb, nan_values = True)
+            
+            for fh, dt in zip(ro_fhs, becgis.ConvertDatetimeDate(complete_data['tr'][1], out = 'datetime')):
+                
+                if dt in date_list:
+                    RO = becgis.OpenAsArray(fh, nan_values = True)
+                    RO[mask != 1] = np.nan
+                
+                    arr = np.append(arr, np.nansum(RO))
+
+            discharge_sum[str(sb_code)] = arr
+
+#    plt.plot(discharge_sum['1'], label='2')
+#    plt.legend()
+
     #%% Splitting up the outflow
     split_discharge = discharge_split(global_data["wpl_tif"],global_data["environ_water_req"],discharge_sum,ro_fhs,fractions_fhs,sb_fhs_code_names,date_list)
 
