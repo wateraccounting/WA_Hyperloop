@@ -51,7 +51,7 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
         
         P = complete_data['p'][0][complete_data['p'][1] == date][0]
         ET = complete_data['et'][0][complete_data['et'][1] == date][0]
-        RO = complete_data['ro'][0][complete_data['ro'][1] == date][0]
+        RO = complete_data['tr'][0][complete_data['tr'][1] == date][0]
         
         p = becgis.OpenAsArray(P, nan_values = True) * 0.001 * 0.001 * area
         et = becgis.OpenAsArray(ET, nan_values = True) * 0.001 * 0.001 * area

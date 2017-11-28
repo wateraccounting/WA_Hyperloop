@@ -47,7 +47,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, template = r
     sb_names = [sb_name.split('.')[0] for sb_name in sb_names]
     sb_fhs_code_names = zip(sb_fhs,sb_codes,sb_names)
     #Outlets .shp
-    outlets = metadata['outflow_nodes'] #Shapefile's 2nd field (after id) should contain the name of the subbasin as written in sb_names
+    #outlets = metadata['outflow_nodes'] #Shapefile's 2nd field (after id) should contain the name of the subbasin as written in sb_names
     
     # subbasin connectivity dictionaries
     dico_in = metadata['dico_in']
@@ -140,10 +140,14 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, template = r
         discharge_sum = dict()
         subbasins2 = list()
         
-        for temp_sb, sb_code in zip(sb_fhs, sb_codes):
+        for temp_sb, sb_code in sorted(zip(sb_fhs, sb_codes), key=lambda tup: tup[1], reverse = False):
+            
+            
+            in_list = np.array(metadata['dico_in'][int(sb_code)])
+            print in_list
             
             subbasins2.append(sb_name)
-            arr = np.array([])
+            RO_sb = np.array([])
             
             mask = becgis.OpenAsArray(temp_sb, nan_values = True)
             
@@ -153,9 +157,21 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, template = r
                     RO = becgis.OpenAsArray(fh, nan_values = True)
                     RO[mask != 1] = np.nan
                 
-                    arr = np.append(arr, np.nansum(RO))
+                    RO_sb = np.append(RO_sb, np.nansum(RO))
+                
+            print len(RO_sb)
+            
+            if 0 in in_list:
+                
+                print "Adding 'added_inflow[{0}]' to {1}".format(sb_code, sb_code)
+                
+                RO_sb += added_inflow[int(sb_code)] / 1000000000.
+                
+            for inflow_sb in in_list[in_list != 0]:
+                
+                RO_sb += discharge_sum[str(inflow_sb)]
 
-            discharge_sum[str(sb_code)] = arr
+            discharge_sum[str(sb_code)] = RO_sb
 
 #    plt.plot(discharge_sum['1'], label='2')
 #    plt.legend()
