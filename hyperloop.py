@@ -107,19 +107,19 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
     ##
     # CHECK Q
     ##
-    correction = calc_missing_runoff_fractions(metadata)['full']
+    #correction = calc_missing_runoff_fractions(metadata)['full']
     
     plt.figure(4)
     plt.clf()
     q = sh1.get_ts(all_results, 'q_out_sw') -  sh1.get_ts(all_results, 'q_in_sw')  +  sh1.get_ts(all_results, 'q_out_gw')  -  sh1.get_ts(all_results, 'q_in_gw') +  sh1.get_ts(all_results, 'q_outflow') - sh1.get_ts(all_results, 'q_in_desal')
     plt.scatter(ro_y, q, label = 'original')
-    plt.scatter(ro_y * correction, q, label = 'corrected')
+    #plt.scatter(ro_y * correction, q, label = 'corrected')
     plt.legend()
     plt.xlabel('Waterpix_runoff [km3/month]')
     plt.ylabel('Sheet1 [km3/month]')
     nash = pwv.nash_sutcliffe(ro_y, q)
-    nash2 = pwv.nash_sutcliffe(ro_y * correction, q)
-    plt.title('RUNOFF, NS = {0}, {1}'.format(nash, nash2))
+    #nash2 = pwv.nash_sutcliffe(ro_y * correction, q)
+    plt.title('RUNOFF, NS = {0}'.format(nash))
     plt.savefig(os.path.join(output_dir, "CHECK_Q.jpg"))  
     
     ###
