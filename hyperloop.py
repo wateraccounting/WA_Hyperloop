@@ -30,15 +30,15 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
-    runoff = SortWaterPix(waterpix, 'TotalRunoff_M', output_dir)
-    becgis.MatchProjResNDV(metadata['lu'], becgis.ListFilesInFolder(runoff), os.path.join(output_dir, "runoff_matched"))
-    complete_data['ro'] = becgis.SortFiles(os.path.join(output_dir, "runoff_matched"), [-10,-6], month_position = [-6,-4])[0:2]
-    
+#    runoff = SortWaterPix(waterpix, 'TotalRunoff_M', output_dir)
+#    becgis.MatchProjResNDV(metadata['lu'], becgis.ListFilesInFolder(runoff), os.path.join(output_dir, "runoff_matched"))
+#    complete_data['tr'] = becgis.SortFiles(os.path.join(output_dir, "runoff_matched"), [-10,-6], month_position = [-6,-4])[0:2]
+#    
     LU = becgis.OpenAsArray(metadata['lu'], nan_values = True)
     
-    common_dates = becgis.CommonDates([complete_data['p'][1],complete_data['et'][1],complete_data['ro'][1], complete_data['etb'][1]])
+    common_dates = becgis.CommonDates([complete_data['p'][1],complete_data['et'][1],complete_data['tr'][1], complete_data['etb'][1]])
     
-    becgis.AssertProjResNDV([complete_data['p'][0],complete_data['et'][0],complete_data['ro'][0]])
+    becgis.AssertProjResNDV([complete_data['p'][0],complete_data['et'][0],complete_data['tr'][0]])
     
     balance = np.array([])
     p_y = np.array([])
@@ -407,7 +407,6 @@ def calc_missing_runoff_fractions(metadata):
         
         sizes[sb] = np.nansum(subs[subs == sb]) / sb
         
-    #%%
         accumsin = list()
         accumsout = list()
         
