@@ -23,17 +23,109 @@ import ogr
 import wa.General.raster_conversions as RC
 import subprocess
 import wa.General.data_conversions as LA
+import shutil
 
+def diagnosis_wp(metadata, complete_data, output_dir, waterpix):
+
+    output_dir = os.path.join(output_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+   
+    LU = becgis.OpenAsArray(metadata['lu'], nan_values = True)
+    
+    S = SortWaterPix(waterpix, 'Supply_M', output_dir)
+    becgis.MatchProjResNDV(metadata['lu'], becgis.ListFilesInFolder(S), os.path.join(output_dir, "s_matched"))
+    complete_data['supply'] = becgis.SortFiles(os.path.join(output_dir, "s_matched"), [-10,-6], month_position = [-6,-4])[0:2]
+    
+    print S
+    print os.path.split(complete_data['supply'][0][0])[0]
+    
+    common_dates = becgis.CommonDates([complete_data['p'][1],complete_data['et'][1],complete_data['tr'][1], complete_data['etb'][1]])
+    
+    becgis.AssertProjResNDV([complete_data['p'][0],complete_data['et'][0],complete_data['tr'][0]])
+    
+    balance = np.array([])
+    
+    p_y = np.array([])
+    et_y = np.array([])
+    ro_y = np.array([])
+    su_y = np.array([])
+
+    area = becgis.MapPixelAreakm(metadata['lu'])
+    
+    for date in common_dates:
+        
+        print date
+        
+        P = complete_data['p'][0][complete_data['p'][1] == date][0]
+        ET = complete_data['et'][0][complete_data['et'][1] == date][0]
+        RO = complete_data['tr'][0][complete_data['tr'][1] == date][0]
+        SU = complete_data['supply'][0][complete_data['supply'][1] == date][0]
+       
+        p = becgis.OpenAsArray(P, nan_values = True) * 0.001 * 0.001 * area
+        et = becgis.OpenAsArray(ET, nan_values = True) * 0.001 * 0.001 * area
+        ro = becgis.OpenAsArray(RO, nan_values = True) * 0.001 * 0.001 * area
+        su = becgis.OpenAsArray(SU, nan_values = True) * 0.001 * 0.001 * area
+    
+        p[np.isnan(LU)] = et[np.isnan(LU)] = ro[np.isnan(LU)] = su[np.isnan(LU)] = np.nan
+    
+        balance = np.append(balance, np.nansum(p) - np.nansum(et) - np.nansum(ro) + np.nansum(su))
+        
+        p_y = np.append(p_y, np.nansum(p))
+        et_y = np.append(et_y, np.nansum(et))
+        ro_y = np.append(ro_y, np.nansum(ro))
+        su_y = np.append(su_y, np.nansum(su))
+   
+    relative_storage = np.cumsum(balance) / np.mean(p_y)
+    
+    ##
+    # BASIC BASINSCALE WATERBALANCE (PRE-SHEETS)
+    ##
+    fig = plt.figure(1, figsize = (9,6))
+    plt.clf()
+    fig.patch.set_alpha(0.7)
+    
+    ax2 = plt.gca()
+    ax = ax2.twinx()
+    
+    ax2.bar(common_dates, relative_storage, width = 25, color = '#3ee871')
+    
+    ax2.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
+    ax.bar([common_dates[0]],[0], label = '$\sum dS / \overline{P}$', color = '#3ee871')
+    ax.plot(common_dates, np.cumsum(balance), label = '$\sum dS$')
+    ax.plot(common_dates, np.cumsum(p_y) + np.cumsum(su_y), label = '$\sum (P + SPLY)$')
+    ax.plot(common_dates, np.cumsum(et_y) + np.cumsum(ro_y), label = '$\sum (ET + RO)$')
+
+    box = ax.get_position()
+    ax.set_position([box.x0, box.y0 + box.height * 0.1,
+                 box.width, box.height * 0.9])
+    ax2.set_position([box.x0, box.y0 + box.height * 0.1,
+                 box.width, box.height * 0.9])
+
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
+          fancybox=True, shadow=True, ncol=5)
+
+    plt.suptitle('$\sum P = {0:.1f}\;{4}, \\ \sum ET = {1:.1f}\;{4}, \sum RO = {2:.1f}\;{4}, \sum dS = {3:.1f}\;{4}$'.format(np.sum(p_y), np.sum(et_y), np.sum(ro_y), np.sum(balance), r"km^{3}"))
+    plt.title('{0}, ${5} = {2:.3f}\;{6}, {7} = {3:.3f}, dt = {4}\;months$'.format(metadata['name'], np.sum(balance), np.mean(balance), np.mean(relative_storage), len(p_y), r"\overline{dS}", r"km^{3}", r"\overline{\sum dS / \overline{P}}"))
+    plt.xlabel('Time')
+    
+    ax2.set_ylabel('Relative Storage [months of $\overline{P}$]')
+    ax.set_ylabel('Stock [$km^{3}$]')
+    plt.savefig(os.path.join(output_dir, 'balance_{0}'.format(metadata['name'])))
+    
+    shutil.rmtree(S)
+    shutil.rmtree(os.path.split(complete_data['supply'][0][0])[0])
+    
 def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
 
     output_dir = os.path.join(output_dir, metadata['name'], "diagnosis")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
-#    runoff = SortWaterPix(waterpix, 'TotalRunoff_M', output_dir)
-#    becgis.MatchProjResNDV(metadata['lu'], becgis.ListFilesInFolder(runoff), os.path.join(output_dir, "runoff_matched"))
-#    complete_data['tr'] = becgis.SortFiles(os.path.join(output_dir, "runoff_matched"), [-10,-6], month_position = [-6,-4])[0:2]
-#    
+    S = SortWaterPix(waterpix, 'Supply_M', output_dir)
+    becgis.MatchProjResNDV(metadata['lu'], becgis.ListFilesInFolder(S), os.path.join(output_dir, "s_matched"))
+    complete_data['supply'] = becgis.SortFiles(os.path.join(output_dir, "s_matched"), [-10,-6], month_position = [-6,-4])[0:2]
+    
     LU = becgis.OpenAsArray(metadata['lu'], nan_values = True)
     
     common_dates = becgis.CommonDates([complete_data['p'][1],complete_data['et'][1],complete_data['tr'][1], complete_data['etb'][1]])
@@ -41,9 +133,15 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
     becgis.AssertProjResNDV([complete_data['p'][0],complete_data['et'][0],complete_data['tr'][0]])
     
     balance = np.array([])
+    balance2 = np.array([])
+    
     p_y = np.array([])
     et_y = np.array([])
     ro_y = np.array([])
+    bf_y = np.array([])
+    supply_y = np.array([])
+    
+    ds_y = np.array([])
     
     area = becgis.MapPixelAreakm(metadata['lu'])
     
@@ -52,31 +150,28 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
         P = complete_data['p'][0][complete_data['p'][1] == date][0]
         ET = complete_data['et'][0][complete_data['et'][1] == date][0]
         RO = complete_data['tr'][0][complete_data['tr'][1] == date][0]
+        BF = complete_data['bf'][0][complete_data['bf'][1] == date][0]
+        DS = complete_data['ds'][0][complete_data['ds'][1] == date][0]
+        supply = complete_data['supply'][0][complete_data['supply'][1] == date][0]
         
         p = becgis.OpenAsArray(P, nan_values = True) * 0.001 * 0.001 * area
         et = becgis.OpenAsArray(ET, nan_values = True) * 0.001 * 0.001 * area
         ro = becgis.OpenAsArray(RO, nan_values = True) * 0.001 * 0.001 * area
+        bf = becgis.OpenAsArray(BF, nan_values = True) * 0.001 * 0.001 * area
+        ds = becgis.OpenAsArray(DS, nan_values = True) * 0.001 * 0.001 * area
+        supply = becgis.OpenAsArray(supply, nan_values = True) * 0.001 * 0.001 * area
     
-        p[np.isnan(LU)] = et[np.isnan(LU)] = ro[np.isnan(LU)] = np.nan
+        p[np.isnan(LU)] = et[np.isnan(LU)] = ro[np.isnan(LU)] = bf[np.isnan(LU)] = ds[np.isnan(LU)] = supply[np.isnan(LU)] =  np.nan
     
         balance = np.append(balance, np.nansum(p) - np.nansum(et) - np.nansum(ro))
+        balance2 = np.append(balance2, np.nansum(p) + np.nansum(supply) - np.nansum(et) - np.nansum(ro) - np.nansum(bf))
+        
         p_y = np.append(p_y, np.nansum(p))
         et_y = np.append(et_y, np.nansum(et))
         ro_y = np.append(ro_y, np.nansum(ro))
-      
-    ##
-    # BASIC WATERBALANCE (PRE-SHEETS)
-    ##
-    plt.figure(1)
-    plt.clf()
-    plt.plot(common_dates, np.cumsum(balance), label = 'dS [CHIRPS, ETens, WPro]')
-    plt.plot(common_dates, np.cumsum(p_y), label = 'CHIRPS')
-    plt.plot(common_dates, np.cumsum(et_y) + np.cumsum(ro_y), label = 'ETens + WPro')
-    plt.legend()
-    plt.title('CHIRPS, ETens, WPrunoff')
-    plt.xlabel('months [km3/month]')
-    plt.ylabel('flux [km3/month]')
-    plt.savefig(os.path.join(output_dir, "WB_presheet1.jpg"))
+        bf_y = np.append(bf_y, np.nansum(bf))
+        ds_y = np.append(ds_y, np.nansum(ds))
+        supply_y = np.append(supply_y, np.nansum(supply))
     
     ###
     # CHECK ET
@@ -108,7 +203,6 @@ def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
     # CHECK Q
     ##
     #correction = calc_missing_runoff_fractions(metadata)['full']
-    
     plt.figure(4)
     plt.clf()
     q = sh1.get_ts(all_results, 'q_out_sw') -  sh1.get_ts(all_results, 'q_in_sw')  +  sh1.get_ts(all_results, 'q_out_gw')  -  sh1.get_ts(all_results, 'q_in_gw') +  sh1.get_ts(all_results, 'q_outflow') - sh1.get_ts(all_results, 'q_in_desal')
@@ -349,10 +443,10 @@ def sort_data(data, metadata, global_data, output_dir):
     
     return complete_data
 
-def SortWaterPix(nc, variable, output_folder):
+def SortWaterPix(nc, variable, output_folder, time_var = 'time_yyyymm'):
     spa_ref = davgis.Spatial_Reference(4326)
     nc1 = netCDF4.Dataset(nc)
-    time = nc1.variables['time_yyyymm'][:]
+    time = nc1.variables[time_var][:]
     for time_value in time:
         output_dir = os.path.join(output_folder, variable)
         output_tif = os.path.join(output_dir, "{0}_{1}.tif".format(variable, time_value))
@@ -363,7 +457,7 @@ def SortWaterPix(nc, variable, output_folder):
                                 ras_variable=variable,
                                 x_variable='longitude', y_variable='latitude',
                                 crs=spa_ref,
-                                time={'variable': 'time_yyyymm', 'value': time_value})
+                                time={'variable': time_var, 'value': time_value})
     return output_dir
 
 def calc_missing_runoff_fractions(metadata):
