@@ -365,7 +365,7 @@ def splitET_ITE(et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_fhs, n_d
         ax.set_ylim([0, max(et) *1.2])
         ax.set_xlabel('Time')
         [r.set_zorder(10) for r in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'ETfractions_ITE.jpg'))
+        plt.savefig(os.path.join(output_dir,'ETfractions_ITE.png'))
 
     # Create arrays with filehandles and datetime.date objects on the created maps.
     t_fhs, t_dates, t_years, t_months, t_days = becgis.SortFiles(directory_t, [-10,-6], month_position = [-6,-4])

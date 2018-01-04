@@ -955,7 +955,7 @@ def linear_fractions(lu_fh, upstream_fh, proxy_fh, output_fh, xs, unit = 'km', q
     alpha[~upstream] = f2(distances[~upstream])
     
     if plot_graph:
-        graph_fh = output_fh.replace('.tif', '.jpg')
+        graph_fh = output_fh.replace('.tif', '.png')
         x = np.arange(np.nanmin(distances), np.nanmax(distances), 1)
         fig = plt.figure(figsize=(10,10))
         plt.clf()

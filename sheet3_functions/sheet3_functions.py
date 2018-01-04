@@ -261,7 +261,7 @@ def splitET_BlueGreen(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dates, 
     
     if type(moving_avg_length) is dict:
         max_moving_avg_length = np.max(moving_avg_length.values())
-        becgis.plot_category_areas(lu_fh, green_blue_categories, os.path.join(output_dir, 'Landuse_Areas.jpg'), area_treshold = 0.01)
+        becgis.plot_category_areas(lu_fh, green_blue_categories, os.path.join(output_dir, 'Landuse_Areas.png'), area_treshold = 0.01)
         if method == 'central':
             dts = common_dates[(max_moving_avg_length-1)/2:len(common_dates)-(max_moving_avg_length-1)/2]
             for value in moving_avg_length.values():
@@ -422,7 +422,7 @@ def splitET_BlueGreen(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dates, 
             
             print("Saving Budyko plot for {0}...".format(date.year))
             
-            plt.savefig(os.path.join(directory_budyko, 'bc{0}_{1}months_{2}_lu{3}.jpg'.format(date.year, max_moving_avg_length, method, str(lu_dependent))))
+            plt.savefig(os.path.join(directory_budyko, 'bc{0}_{1}months_{2}_lu{3}.png'.format(date.year, max_moving_avg_length, method, str(lu_dependent))))
             plt.close(fig)
             
     etblue_fhs, etblue_dates, etblue_years, etblue_months, etblue_days = becgis.SortFiles(directory_etblue, [-10,-6], month_position = [-6,-4])
@@ -447,7 +447,7 @@ def splitET_BlueGreen(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dates, 
         ax.set_ylim([0, max(et) *1.2])
         ax.set_xlabel('Time')
         [j.set_zorder(10) for j in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'ETbluegreen_{0}months_{1}_lu{2}.jpg'.format(max_moving_avg_length, method, str(lu_dependent))))
+        plt.savefig(os.path.join(output_dir,'ETbluegreen_{0}months_{1}_lu{2}.png'.format(max_moving_avg_length, method, str(lu_dependent))))
         plt.close(fig)
         
     if plot_graph:
@@ -469,7 +469,7 @@ def splitET_BlueGreen(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dates, 
         ax.set_ylim([0, max([max(pavg),max(p)]) *1.2])
         ax.set_xlabel('Time')
         [j.set_zorder(10) for j in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'Paveraged_{0}months_{1}_lu{2}.jpg'.format(max_moving_avg_length, method, str(lu_dependent))))
+        plt.savefig(os.path.join(output_dir,'Paveraged_{0}months_{1}_lu{2}.png'.format(max_moving_avg_length, method, str(lu_dependent))))
         plt.close(fig)
         
     return etblue_fhs, etblue_dates, etgreen_fhs, etgreen_dates  
@@ -540,7 +540,7 @@ def splitET_BlueGreen_old(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dat
     
     if type(moving_avg_length) is dict:
         max_moving_avg_length = np.max(moving_avg_length.values())
-        becgis.plot_category_areas(lu_fh, green_blue_categories, os.path.join(output_dir, 'landuse_area.jpg'), area_treshold = 0.01)
+        becgis.plot_category_areas(lu_fh, green_blue_categories, os.path.join(output_dir, 'landuse_area.png'), area_treshold = 0.01)
     else:
         max_moving_avg_length = moving_avg_length
     
@@ -636,7 +636,7 @@ def splitET_BlueGreen_old(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dat
             if not os.path.exists(directory_budyko):
                 os.makedirs(directory_budyko)
             
-            plt.savefig(os.path.join(directory_budyko, 'bc_{0}{1}.jpg'.format(date.year, str(date.month).zfill(2))))
+            plt.savefig(os.path.join(directory_budyko, 'bc_{0}{1}.png'.format(date.year, str(date.month).zfill(2))))
     
     etblue_fhs, etblue_dates, etblue_years, etblue_months, etblue_days = becgis.SortFiles(directory_etblue, [-11,-7], month_position = [-6,-4])
     etgreen_fhs, etgreen_dates, etgreen_years, etgreen_months, etgreen_days = becgis.SortFiles(directory_etgreen, [-11,-7], month_position = [-6,-4])   
@@ -659,7 +659,7 @@ def splitET_BlueGreen_old(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dat
         ax.set_ylim([0, max(et) *1.2])
         ax.set_xlabel('Time')
         [i.set_zorder(10) for i in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'ETfractions_bluegreen_int.jpg'))
+        plt.savefig(os.path.join(output_dir,'ETfractions_bluegreen_int.png'))
         
 
 
@@ -1056,7 +1056,7 @@ def calc_Y_WP_season(startdate, enddate, lu_fh, lu_class, croptype, etgreen_fhs,
             plt.legend()
             plt.xlim((0,1))
             plt.ylim((0,1))
-            plt.savefig(os.path.join(output_dir, '{0}_{1}_{2}_cloud.jpg'.format(croptype, req_dates[0], req_dates[-1])))
+            plt.savefig(os.path.join(output_dir, '{0}_{1}_{2}_cloud.png'.format(croptype, req_dates[0], req_dates[-1])))
 
         Yield = np.nanmean(Y)
         Yield_pr = np.nanmean(Ypr)

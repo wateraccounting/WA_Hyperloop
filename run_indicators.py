@@ -73,12 +73,32 @@ def get_definitions(freq):
                    'irr_agr_ET':    eq_14,
                    'gw_wthdrwl':    eq_20,
                    'irr._fcncy':    eq_21,
-                   'recoverble':    eq_22}
+                   'recovarble':    eq_22}
 
     return definitions
 
 
-def plot_indicators(path, *args):
+def get_def_longname(short_name):
+    """
+    """
+    long_definitions = {'expl._wat.':    'Exploitable Water',
+                        'strg_chng.':    'Storage Change',
+                        'avlb._wat.':    'Available Water',
+                        'bsn._clsr.':    'Basin Closure',
+                        'rsrvd._of.':    'Reserved Outflow',
+                        't_fraction':    'Transpiration',
+                        'benefi_ET':     'Beneficial ET',
+                        'mngd_ET':       'Managed ET',
+                        'agr_ET':        'Agricultural ET',
+                        'irr_agr_ET':    'Irrigated Agricultural ET',
+                        'gw_wthdrwl':    'Groundwater Withdrawal',
+                        'irr._fcncy':    'Irrigation Efficiency',
+                        'recovarble':    'Recoverable'}
+
+    return long_definitions[short_name]
+
+
+def plot_indicator(path, *args):
     """
     Plot histograms for different Water Accounting indicators and
     save the plots in the path folder.
@@ -87,33 +107,109 @@ def plot_indicators(path, *args):
 
         freq = get_frequency(arg['dates'])
         defs = get_definitions(freq)
+        dates = arg.pop('dates', None)
 
         for indicator, values in arg.items():
 
-            if indicator != 'dates':
+            values = values[~np.isnan(values)]
 
-                values = values[~np.isnan(values)]
+            out_file = 'idc_{0}_{1}.png'.format(indicator, freq)
+            out_path = os.path.join(path, out_file)
 
-                out_file = 'idc_{0}_{1}.png'.format(indicator, freq)
-                out_path = os.path.join(path, out_file)
+            stats = len(values), np.mean(values), np.std(values)
+            title = defs.get(indicator)
 
-                stats = len(values), np.mean(values), np.std(values)
-                title = defs.get(indicator)
-
-                plt.figure(1)
-                plt.clf()
-                plt.grid(b=True, which='Major', color='0.65', linestyle='--')
-                plt.hist(values)
+            plt.figure(1)
+            plt.clf()
+            plt.grid(b=True, which='Major', color='0.65', linestyle='--')
+            plt.hist(values)
+            if indicator == 'strg_chng.':
+                plt.xlim([-1, 1])
+            else:
                 plt.xlim([0, 1])
-                plt.xlabel(clean_name(indicator) + ' [-]')
-                plt.ylabel('Frequency [-]')
-                plt.suptitle(('n = {0}, mean = {1:.2f}'
-                              ', std = {2:.2f}'.format(*stats)))
-                plt.title(title, fontsize=18)
-                plt.subplots_adjust(top=0.85)
-                plt.savefig(out_path)
-                plt.close(1)
+            plt.xlabel(get_def_longname(indicator) + ' [-]')
+            plt.ylabel('Frequency [-]')
+            plt.suptitle(('n = {0}, mean = {1:.2f}'
+                          ', std = {2:.2f}'.format(*stats)))
+            plt.title(title, fontsize=18)
+            plt.subplots_adjust(top=0.85)
+            plt.savefig(out_path)
+            plt.close(1)
 
+        arg['dates'] = dates
+
+#%%
+plt.figure()
+
+## the data
+idc_means = dict()
+idc_stds = dict()
+
+for ID, basin in basins.items():
+
+    idc_means[ID] = list()
+    idc_stds[ID] = list()
+
+    for indicator, values in basin['idcs'].items():
+
+        if indicator != 'dates':
+            idc_means[ID].append(np.nanmean(values))
+            idc_stds[ID].append(np.nanstd(values))
+
+no_of_indicators = len(basin1)
+no_of_basins = len(basins.keys())
+
+## necessary variables
+ind = np.arange(N)                # the x locations for the groups
+width = 0.8 / no_basins                   # the width of the bars
+
+#colors = ['#6bb8cc','#87c5ad', '#9ad28d', '#acd27a', '#c3b683', '#d4988b', '#b98b89', '#868583', '#497e7c'] * 3
+import matplotlib.colors as colors
+import matplotlib.cm as cmx
+jet = plt.get_cmap('tab20')
+cNorm  = colors.Normalize(vmin=0, vmax=14)
+scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=jet)
+
+values = range(15)
+rects = tuple()
+i = 0
+## the bars
+for ID in basins.keys():
+    rects1 = plt.bar(ind + i*width, idc_means[ID], width,
+                    color= scalarMap.to_rgba(values[i]),
+                    #yerr=idc_stds[ID],
+                    error_kw=dict(elinewidth=2,ecolor='red'))
+    
+    i+= 1
+    rects += (rects1, )
+
+xticks = basin['idcs'].keys()
+xticks.pop(xticks.index('dates'))
+xticks = [get_def_longname(short_name) for short_name in xticks]
+#rects2 = ax.bar(ind+width, basin2, width,
+#                    color='red',
+#                    yerr=basin2_std,
+#                    error_kw=dict(elinewidth=2,ecolor='black'))
+
+
+# axes and labels
+plt.xlim(-width,len(ind)+width)
+plt.ylim(0,1)
+plt.ylabel('Scores')
+#ax.set_title()
+#xTickMarks = xticks
+plt.xticks(ind+width)
+ax = plt.gca()
+xtickNames = ax.set_xticklabels(xticks)
+plt.setp(xtickNames, rotation=45, fontsize=10)
+
+## add a legend
+names = [basin['name'] for basin in basins.values()]
+ax.legend( rects, names)
+
+plt.show()
+
+#%%
 
 def calc_mean(maps):
     """
@@ -141,40 +237,55 @@ def calc_mean(maps):
     return fh
 
 
-def calc_indicators(basins, output_dir, pop_map):
+def calc_indicators(basins, output_dir):
     """
     Calculate indicators based on numbers on the Water Accounting sheets,
     plot histograms of them and fill in average values into a shapefile
     that contains all the basin outlines.
     """
-    basin_shp = os.path.join(output_dir, 'All_Basins.shp')
 
     for basin in basins.values():
 
         print "Running Basin {0}".format(basin['id'])
 
-        dir1 = os.path.join(output_dir, basin['name'], 'csvs_yearly')
-        sh1_indicators = indicators.sheet1_indicators(dir1)
+        basin['idcs'] = dict()
+        basin['stats'] = dict()
 
-        dir2 = os.path.join(output_dir, basin['name'], 'yearly_sheet2')
+        dir1 = os.path.join(output_dir, basin['name'], 'csvs_monthly')
+        sh1_indicators = indicators.sheet1_indicators(dir1)
+        basin['idcs'] = merge_two_dicts(basin['idcs'], sh1_indicators)
+
+        dir2 = os.path.join(output_dir, basin['name'], 'monthly_sheet2')
         sh2_indicators = indicators.sheet2_indicators(dir2)
+        basin['idcs'] = merge_two_dicts(basin['idcs'], sh2_indicators)
 
         dir4 = os.path.join(output_dir, basin['name'], 'sheet4')
         sh4_indicators = indicators.sheet4_indicators(dir4)
-
-        path = os.path.join(output_dir, basin['name'])
-
-        args = sh1_indicators, sh2_indicators, sh4_indicators
-
-        plot_indicators(path, *args)
+        basin['idcs'] = merge_two_dicts(basin['idcs'], sh4_indicators)
 
         lu_areas = calc_lu_areas(basin['lu'])
+        basin['stats'] = merge_two_dicts(basin['stats'], lu_areas)
+
         prcp_monthly = calc_monthly_p(basin, output_dir)
+        basin['stats'] = merge_two_dicts(basin['stats'], prcp_monthly)
+
         eti = calc_avg_eti(basin['lu'], basin, output_dir)
+        basin['stats'] = merge_two_dicts(basin['stats'], eti)
 
-        args += (lu_areas, prcp_monthly, eti)
+    return basins
 
-        update_idc_shapefile(basin_shp, ('ID', basin['id']), *args)
+
+def plot_indicators(basins, output_dir):
+    """
+    """
+    basin_shp = os.path.join(output_dir, 'All_Basins.shp')
+
+    for basin in basins.values():
+
+        path = os.path.join(output_dir, basin['name'])
+        plot_indicator(path, basin['idcs'])
+        update_idc_shapefile(basin_shp, ('ID', basin['id']), basin['idcs'],
+                             basin['stats'])
 
 
 def calc_sb_indicators(basins, output_dir, pop_map):
@@ -194,13 +305,16 @@ def calc_sb_indicators(basins, output_dir, pop_map):
 
             pop = calc_mskd_mean(sb_map, pop_map, 'ppl/ha')
             et = calc_avg_flux(sb_map, basin, output_dir, 'et')
+            precip = calc_avg_flux(sb_map, basin, output_dir, 'p')
 
-            args = pop, et
+            args = pop, et, precip
             update_idc_shapefile(sb_shp, ('IDsb', IDsb), *args)
 
 
 def calc_avg_flux(mask, basin, output_dir, flux):
     """
+    Calculate the temporally and spatially average of a timeseries
+    of maps.
     """
     input_dir = os.path.join(output_dir, basin['name'], flux)
     ets = bg.SortFiles(input_dir, [-10, -6], month_position=[-6, -4])[0]
@@ -221,6 +335,7 @@ def merge_two_dicts(x, y):
 
 def calc_avg_eti(mask, basin, output_dir):
     """
+    Calculate the average E, T and I values in a basin.
     """
     eti_idc = dict()
     for flux in ['i', 't', 'et']:
@@ -232,6 +347,7 @@ def calc_avg_eti(mask, basin, output_dir):
 
 def calc_monthly_p(basin, output_dir):
     """
+    Calculate the monthly average precipitation in a basin.
     """
     input_dir = os.path.join(output_dir, basin['name'], 'p')
     precip = bg.SortFiles(input_dir, [-10, -6], month_position=[-6, -4])
@@ -251,12 +367,15 @@ def calc_monthly_p(basin, output_dir):
 
 def get_shp_field_names(shp_object):
     """
+    Return a list of the field names in a shapefile.
     """
     return [field[0] for field in shp_object.fields[1:]]
 
 
 def update_idc_shapefile(basin_shp, identifier, *args):
     """
+    Update a shapefile by providing a colum name and value and
+    an indentifier to indicate which feature should be updated.
     """
     orig = shapefile.Reader(basin_shp)
     new = shapefile.Writer()
@@ -302,12 +421,14 @@ def update_idc_shapefile(basin_shp, identifier, *args):
 # pop_map = r"D:\Products\WorldPop\VNM-POP\VNM_pph_v2b_2009.tif"
 # output_dir = r"D:\project_ADB\Catchments\Vietnam"
 #
-# calc_indicators(basins, output_dir, pop_map)
+# basins = calc_indicators(basins, output_dir)
 # calc_sb_indicators(basins, output_dir, pop_map)
+# plot_indicators(basins, idc_values, output_dir)
 
 
 def calc_mskd_mean(mask_map, pop_map, idc_name):
     """
+    Open a map and calculate the average of a masked area.
     """
     target_maps = np.array([pop_map])
     temp_dir = os.path.split(mask_map)[0]
@@ -330,6 +451,7 @@ def calc_mskd_mean(mask_map, pop_map, idc_name):
 
 def calc_lu_areas(lu_map):
     """
+    Calculate the areas of the four different major WA+ landuse categories.
     """
     lu = bg.OpenAsArray(lu_map, nan_values=True)
 

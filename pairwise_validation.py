@@ -104,7 +104,7 @@ def compare_rasters2stations(ds1_fhs, ds1_dates, station_dict, output_dir, stati
                 results[station] += (sample_size,)
                          
                 pixel_coordinates.append((xpixel, ypixel))
-                m, b = np.polyfit(ds1_values, common_station_values, 1)  
+                #m, b = np.polyfit(ds1_values, common_station_values, 1)  
                 
                 path_scatter = os.path.join(output_dir, 'scatter_plots')
                 if not os.path.exists(path_scatter):
@@ -122,12 +122,12 @@ def compare_rasters2stations(ds1_fhs, ds1_dates, station_dict, output_dir, stati
                 ylabel = '{0} {1} {2}'.format(dataset_names[1], quantity_unit[0], quantity_unit[1])
                 if station_names is not None:
                     title = station_names[station]
-                    fn = os.path.join(path_scatter,'{0}_vs_{1}.jpg'.format(station_names[station], dataset_names[0]))
-                    fnts = os.path.join(path_ts,'{0}_vs_{1}.jpg'.format(station_names[station], dataset_names[0]))
+                    fn = os.path.join(path_scatter,'{0}_vs_{1}.png'.format(station_names[station], dataset_names[0]))
+                    fnts = os.path.join(path_ts,'{0}_vs_{1}.png'.format(station_names[station], dataset_names[0]))
                 else:
                     title = station
-                    fn = os.path.join(path_scatter,'{0}_vs_station_{1}.jpg'.format(dataset_names[0],i))
-                    fnts = os.path.join(path_ts,'{0}_vs_station_{1}.jpg'.format(dataset_names[0],i)) 
+                    fn = os.path.join(path_scatter,'{0}_vs_station_{1}.png'.format(dataset_names[0],i))
+                    fnts = os.path.join(path_ts,'{0}_vs_station_{1}.png'.format(dataset_names[0],i)) 
                 suptitle = 'pearson: {0:.5f}, rmse: {1:.5f}, ns: {2:.5f}, bias: {3:.5f}, n: {4:.0f}'.format(results[station][0],results[station][1],results[station][2],results[station][3],results[station][4])
                 plot_scatter_series(ds1_values, common_station_values, xlabel, ylabel, title, fn, suptitle = suptitle, dates = common_dates)
     
@@ -355,7 +355,7 @@ def compare_rasters2rasters_per_lu(ds1_fhs, ds1_dates, ds2_fhs, ds2_dates, lu_fh
     plot_scatter_series(ds1_totals, ds2_totals, dataset_names[0], dataset_names[1], "Total Area", output_dir)
 
     if class_dictionary is not None:
-        output_fh = os.path.join(output_dir, 'landuse_percentages.jpg')
+        output_fh = os.path.join(output_dir, 'landuse_percentages.png')
         driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
         becgis.CreateGeoTiff(lu_fh.replace('.tif','_.tif'), LUCS, driver, NDV, xsize, ysize, GeoT, Projection)
         becgis.plot_category_areas(lu_fh.replace('.tif','_.tif'), class_dictionary, output_fh, area_treshold = 0.01)
@@ -381,6 +381,7 @@ def plot_scatter_series(x,y,xlabel,ylabel,title, output_dir, suptitle = None, da
         Folder or path to store graph.
     """
     maxi = np.nanmax([np.nanmax(x),np.nanmax(y)])*1.1
+    mini = np.nanmin([np.nanmin(x),np.nanmin(y), 0.0])*1.1
     m, b = np.polyfit(x, y, 1)  
     if dates.size:
         C = np.array([date.month for date in dates])
@@ -396,10 +397,10 @@ def plot_scatter_series(x,y,xlabel,ylabel,title, output_dir, suptitle = None, da
     plt.ylabel(ylabel)
     plt.title(title)
     plt.scatter(x, y, c = C, cmap = cmap, marker = '.', alpha = 1.0, lw = 0.0, s = 500, vmin = 0.5, vmax = 12.5)
-    plt.plot([0, maxi],[0, maxi], '--k')
-    plt.plot([0, maxi], [m*0 + b, m*maxi + b], '-r', label = '{0:.2f} * x + {1:.2f}'.format(m,b))
-    plt.ylim([0, maxi])
-    plt.xlim([0, maxi])
+    plt.plot([mini, maxi],[mini, maxi], '--k')
+    plt.plot([mini, maxi], [m*mini + b, m*maxi + b], '-r', label = '{0:.2f} * x + {1:.2f}'.format(m,b))
+    plt.ylim([mini, maxi])
+    plt.xlim([mini, maxi])
     plt.legend(loc='upper left')
     if dates.size:
         cbar = plt.colorbar(label = 'Month')
@@ -407,10 +408,10 @@ def plot_scatter_series(x,y,xlabel,ylabel,title, output_dir, suptitle = None, da
         cbar.set_ticklabels(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])
     if suptitle:
         plt.suptitle(suptitle)
-    if output_dir.split('.')[-1] == 'jpg':
+    if output_dir.split('.')[-1] == 'png':
         plt.savefig(output_dir)
     else:
-        plt.savefig(os.path.join(output_dir, '{0}.jpg'.format(title)))
+        plt.savefig(os.path.join(output_dir, '{0}.png'.format(title)))
 
 def plot_time_series(x,y,dates,xlabel,ylabel,xaxis_label, title, output_dir, suptitle = None):
     plt.figure(2, figsize = (13,5))
@@ -429,31 +430,31 @@ def plot_time_series(x,y,dates,xlabel,ylabel,xaxis_label, title, output_dir, sup
     if suptitle:
         plt.suptitle(suptitle)
     plt.legend()
-    if output_dir.split('.')[-1] == 'jpg':
+    if output_dir.split('.')[-1] == 'png':
         plt.savefig(output_dir)
     else:
-        plt.savefig(os.path.join(output_dir, '{0}.jpg'.format(title)))
+        plt.savefig(os.path.join(output_dir, '{0}.png'.format(title)))
 
 def plot_histogram(values, title, xlabel, output_dir, suptitle = None):
     values = np.array(values)
     
-    mini = np.nanmin(values)
-    maxi = np.nanmax(values)
-    bins = np.arange(mini, maxi, (maxi - mini)/(len(values) / 10.))
+    #mini = np.nanmin(values)
+    #maxi = np.nanmax(values)
+    #bins = np.arange(mini, maxi, (maxi - mini)/(len(values) / 10.))
     
     plt.figure(3, figsize = (10,10))
     plt.clf()
     plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-    plt.hist(values[~np.isnan(values)], bins = bins, color = '#a3db76')
+    plt.hist(values[~np.isnan(values)], color = '#a3db76')
     plt.title(title)
     if suptitle:
         plt.suptitle(suptitle)
     plt.xlabel(xlabel)
     plt.ylabel('Number of Stations [-]')
-    if output_dir.split('.')[-1] == 'jpg':
+    if output_dir.split('.')[-1] == 'png':
         plt.savefig(output_dir)
     else:
-        plt.savefig(os.path.join(output_dir, '{0}_histogram.jpg'.format(title)))
+        plt.savefig(os.path.join(output_dir, '{0}_histogram.png'.format(title)))
         
 def create_dict_entry(csv_fh):
     """Opens a CSV-file and return the station_name, a list with (datetime.datetime, value) 
