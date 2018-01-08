@@ -214,7 +214,7 @@ def get_ts(all_results, key):
     ts = np.array([dct[key] for dct in all_results])
     return ts
 
-def plot_parameter(all_results, dates, catchment_name, output_dir, parameter, extension = 'jpg', color = '#6bb8cc'):
+def plot_parameter(all_results, dates, catchment_name, output_dir, parameter, extension = 'png', color = '#6bb8cc'):
     """
     Plot a graph of a specified parameter calculated by calc_sheet1.
     
@@ -231,7 +231,7 @@ def plot_parameter(all_results, dates, catchment_name, output_dir, parameter, ex
     parameter : str
         Parameter to plot, should be a key in the dictionaries in all_results.
     extension : str, optional
-        Choose to save the graph as a jpg or pdf file. Default is 'jpg'.
+        Choose to save the graph as a png or pdf file. Default is 'png'.
     color : str, optional
         Choose the fill color of the graph. Default is '#6bb8cc'.
     """
@@ -252,7 +252,7 @@ def plot_parameter(all_results, dates, catchment_name, output_dir, parameter, ex
     [i.set_zorder(10) for i in ax.spines.itervalues()]
     plt.savefig(os.path.join(output_dir, '{0}.{1}'.format(parameter, extension)))
    
-def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'jpg'):
+def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'png'):
     """
     Plot two graphs regarding the waterbalanc.
     
@@ -267,7 +267,7 @@ def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'j
     output_dir : str
         Folder to store results.
     extension : str, optional
-        Choose to save the graphs as a jpg or a pdf file. Default is 'jpg'.
+        Choose to save the graphs as a png or a pdf file. Default is 'png'.
     """
     et_ts = get_ts(all_results, 'et_advection')
     q_ts = get_ts(all_results, 'q_outflow')
@@ -641,7 +641,7 @@ def calc_non_utilizable(P, ET, fractions_fh):
 
 #def create_sheet1(basin, period, units, data, output, template=False):
 #    """
-#    Create a jpg file of sheet 1 from a csv-file.
+#    Create a png file of sheet 1 from a csv-file.
 #    
 #    Parameters
 #    ----------
@@ -656,7 +656,7 @@ def calc_non_utilizable(P, ET, fractions_fh):
 #        follow an specific format. A sample csv is available in the link:
 #        https://github.com/wateraccounting/wa/tree/master/Sheets/csv
 #    output : str
-#        The output path of the jpg file for the sheet.
+#        The output path of the png file for the sheet.
 #    template : str
 #        A svg file of the sheet. Use False (default) to use the standard svg file.
 #
@@ -664,7 +664,7 @@ def calc_non_utilizable(P, ET, fractions_fh):
 #    --------
 #    create_sheet1(basin='Incomati', period='2005-2010', units='km3/year',
 #                  data=r'C:\Sheets\csv\Sample_sheet1.csv',
-#                  output=r'C:\Sheets\sheet_1.jpg')
+#                  output=r'C:\Sheets\sheet_1.png')
 #    """
 #
 #    # Read table
@@ -969,5 +969,5 @@ def calc_non_utilizable(P, ET, fractions_fh):
 #    # Export svg to png
 #    from wand.image import Image
 #    img_out = Image(blob=svg_string, resolution=300)
-#    img_out.format = 'jpg'
+#    img_out.format = 'png'
 #    img_out.save(filename=output)
