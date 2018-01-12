@@ -43,7 +43,7 @@ def get_ts_from_complete_data(complete_data, mask, keys):
     return tss
 
 
-def calc_tr_correction(metadata, complete_data, output_dir, plot = True):
+def calc_var_correction(metadata, complete_data, output_dir, formula = 'p-et-tr+supply_sw', plot = True):
 
     a_guess = np.array([1.0])
     
@@ -51,8 +51,7 @@ def calc_tr_correction(metadata, complete_data, output_dir, plot = True):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
-    formula_dsdt = 'p-et-supply_sw-tr'
-    keys, operts = split_form(formula_dsdt)
+    keys, operts = split_form(formula)
     
     tss = get_ts_from_complete_data(complete_data, metadata['lu'], keys)
     
@@ -66,7 +65,7 @@ def calc_tr_correction(metadata, complete_data, output_dir, plot = True):
         
         ds = np.zeros(msk.sum())
         for key, oper in zip(keys, operts):
-            if key == 'tr':
+            if key == keys[-1]:
                 new_data = tss[key][1][msk][x] * a
             else:
                 new_data = tss[key][1][msk][x]
@@ -87,23 +86,24 @@ def calc_tr_correction(metadata, complete_data, output_dir, plot = True):
 
     x = range(msk.sum())
 
-    a,b = optimization.curve_fit(func, x, grace[1][msk], a_guess)                    
+    a,b = optimization.curve_fit(func, x, grace[1][msk], a_guess, bounds = (0, np.inf))                    
     
-    tss['trnew'] = (tss['tr'][0], a[0]*tss['tr'][1])
-    formula_dsdt_new = formula_dsdt.replace('tr', 'trnew')
+    new = keys[-1]+'_new'
+    tss[new] = (tss[keys[-1]][0], a[0]*tss[keys[-1]][1])
+    formula_dsdt_new = formula.replace(keys[-1], new)
     
     path = os.path.join(output_dir, metadata['name'], metadata['name'])
     
     if plot:
-        plot_optimization(grace, func, a, x)
+        plot_optimization(grace, func, a, x, keys[-1])
         plt.savefig(path + '_optimization.png')
         plt.close()
         
-        plot_storage(tss, formula_dsdt, grace, a_guess)
+        plot_storage(tss, formula, grace, a_guess)
         plt.savefig(path + '_orig_dsdt.png')
         plt.close()
         
-        plot_cums(tss, grace, formula_dsdt, formula_dsdt_new)
+        plot_cums(tss, grace, formula, formula_dsdt_new)
         plt.savefig(path + '_cumulatives_wb.png')
         plt.close()
         
@@ -114,43 +114,42 @@ def calc_tr_correction(metadata, complete_data, output_dir, plot = True):
     return a
 
 
-def correct_tr(metadata, complete_data, output_dir):
-    a = calc_tr_correction(metadata, complete_data, output_dir, plot = True)
-    for fn in complete_data['tr'][0]:
+def correct_var(metadata, complete_data, output_dir, formula):
+    var = split_form(formula)[0][-1]
+    a = calc_var_correction(metadata, complete_data, output_dir, formula = formula, plot = True)
+    for fn in complete_data[var][0]:
         geo_info = becgis.GetGeoInfo(fn)
         data = becgis.OpenAsArray(fn, nan_values = True) * a[0]
         becgis.CreateGeoTiff(fn, data, *geo_info)
 
 
-def toord(variable):
-    return [dt.toordinal() for dt in variable[0]]
+def toord(dates):
+    return np.array([dt.toordinal() for dt in dates[0]])
 
 
 def interp_ts(source_ts, destin_ts):
-    dts_ordinal = [dt.toordinal() for dt in source_ts[0]]
-    f = interpolate.interp1d(dts_ordinal, source_ts[1], 
+    f = interpolate.interp1d(toord(source_ts), source_ts[1], 
                              bounds_error = False, fill_value = np.nan)
-    dts_destin_ordinal = [dt.toordinal() for dt in destin_ts[0]]
-    return (destin_ts[0], f(dts_destin_ordinal))
+    values = f(toord(destin_ts))
+    return (destin_ts[0], values)
 
 
 def read_grace_csv(csv_file):
     
-    from datetime import datetime as dtim
-    
     df = pd.read_csv(csv_file)
-    dt = [dtim.strptime(dt, '%Y-%m-%d').date() for dt in df['date'].values]
+    dt = [datetime.strptime(dt, '%Y-%m-%d').date() for dt in df['date'].values]
     grace_mm = np.array(df['dS [mm]'].values)
     
     return np.array(dt), grace_mm
 
 
-def plot_optimization(grace, func, a, x):
+def plot_optimization(grace, func, a, x, title):
     plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
     plt.plot(*grace, label = 'target')
     plt.plot(grace[0], func(x,a[0]), label = 'optimized')
     plt.plot(grace[0], func(x,1), label = 'original')
-    plt.title('a = {0}'.format(a[0]))
+    plt.suptitle('a = {0}'.format(a[0]))
+    plt.title(title)
     plt.legend()
 
 def plot_storage(tss, formula, grace, a):
@@ -196,13 +195,12 @@ def plot_cums(tss, storage, formula_dsdt, formula_dsdt_new):
     keys = split_form(formula_dsdt)[0]
     
     for key in keys:
-        plt.plot(tss[key][0], np.cumsum(tss[key][1]), label = '$\sum {0}$'.format(key))
-        
-#    plt.plot(tss['et'][0], np.cumsum(tss['et'][1]), label = '$\sum ET$')
-#    plt.plot(tss['tr'][0], np.cumsum(tss['tr'][1]), label = '$\sum TR$')
+        plt.plot(tss[key][0], np.cumsum(tss[key][1]),
+                 label = '$\sum {0}$'.format(key))
     
-    plt.plot(tss['trnew'][0], np.cumsum(tss['trnew'][1]),
-             label = '$\sum TR_{corr}$')
+    new = keys[-1]+'_new'
+    plt.plot(tss[new][0], np.cumsum(tss[new][1]),
+             label = '$\sum {0}_{1}$'.format(keys[-1], r'{corr}'))
     
     msk = ~np.isnan(storage[1])
     plt.plot(storage[0][msk], storage[1][msk], label = 'S_grace')
@@ -219,7 +217,7 @@ def plot_cums(tss, storage, formula_dsdt, formula_dsdt_new):
 
 
 def calc_polyfit(ts, order = 1):
-    dts_ordinal = np.array([dt.toordinal() for dt in ts[0]])
+    dts_ordinal = toord(ts)
     p = np.polyfit(dts_ordinal[~np.isnan(ts[1])],
                                ts[1][~np.isnan(ts[1])], order)
     vals = np.polyval(p, dts_ordinal)
@@ -255,7 +253,7 @@ def split_form(formula):
     varias = re.split("\W", formula)
     operts = re.split("[a-z]+", formula, flags=re.IGNORECASE)[1:-1]
     
-    if '_' in operts:
+    while '_' in operts:
         operts.remove('_')
         
     if len(varias) > len(operts):
