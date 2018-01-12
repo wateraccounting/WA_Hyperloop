@@ -9,7 +9,6 @@ import WA_Hyperloop.becgis as becgis
 import numpy as np
 import matplotlib.pyplot as plt
 import gdal
-import tempfile
 import shutil
 from scipy import interpolate
 import csv
@@ -20,72 +19,168 @@ import calendar
 import subprocess
 import tempfile as tf
 import WA_Hyperloop.get_dictionaries as gd
+from WA_Hyperloop.grace_tr_correction import correct_var
 
-def create_sheet4_6(complete_data, metadata, output_dir, global_data):
+def calc_difference(ds1, ds2, output_folder):
     
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        
+    common_dates = becgis.CommonDates([ds1[1], ds2[1]])
+    
+    for dt in common_dates:
+    
+        DS1 = becgis.OpenAsArray(ds1[0][ds1[1] == dt][0], nan_values = True)
+        DS2 = becgis.OpenAsArray(ds2[0][ds2[1] == dt][0], nan_values = True)
+        
+        DS2[np.isnan(DS2)] = 0.0
+        
+        DIFF = DS1 - DS2
+        
+        fn = 'temp_{0}{1}.tif'.format(dt.year, str(dt.month).zfill(2))
+        fh = os.path.join(output_folder, fn)
+        
+        geo_info = becgis.GetGeoInfo(ds1[0][0])
+        
+        becgis.CreateGeoTiff(fh, DIFF, *geo_info)
+        
+    diff = becgis.SortFiles(output_folder, [-10,-6], month_position = [-6,-4])[0:2]
+
+    return diff
+
+
+def calc_recharge(perc, dperc):
+    
+    output_folder_pcs = os.path.normpath(perc[0][0]).split(os.path.sep)[:-2]
+    
+    output_folder1 = output_folder_pcs + ['diff']
+    output_folder1.insert(1, os.path.sep)
+    output_folder1 = os.path.join(*output_folder1)
+    
+    diff = calc_difference(perc, dperc, output_folder1)
+
+    output_folder2 = output_folder_pcs + ['r']
+    output_folder2.insert(1, os.path.sep)
+    output_folder2 = os.path.join(*output_folder2)
+    
+    rchrg = becgis.AverageSeries(diff[0], diff[1], 3, 
+                                 output_folder2, para_name = 'rchrg')
+    
+    shutil.rmtree(output_folder1)
+    
+    return rchrg
+
+def update_gw_supply(complete_data):
+    
+    common_dates = becgis.CommonDates([complete_data['supply_gw'][1], complete_data['supply_sw'][1], complete_data['total_supply'][1]])
+    for date in common_dates:
+        total_supply_tif = complete_data['total_supply'][0][complete_data['total_supply'][1] == date][0]
+        supply_sw_tif = complete_data['supply_sw'][0][complete_data['supply_sw'][1] == date][0]
+        supply_gw_tif = complete_data['supply_gw'][0][complete_data['supply_gw'][1] == date][0]
+        
+        SUP = becgis.OpenAsArray(total_supply_tif, nan_values = True)
+        SW = becgis.OpenAsArray(supply_sw_tif, nan_values = True)
+        
+        GWnew = SUP - SW
+        
+        geo_info = becgis.GetGeoInfo(supply_gw_tif)
+        becgis.CreateGeoTiff(supply_gw_tif, GWnew, *geo_info)
+        
+def create_sheet4_6(complete_data, metadata, output_dir, global_data):
+
     output_dir = os.path.join(output_dir, metadata['name'])
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        
+
     lucs = gd.get_sheet4_6_classes()
     consumed_fractions, sw_supply_fractions, sw_return_fractions = gd.get_sheet4_6_fractions()
 
     equiped_sw_irrigation_tif = global_data["equiped_sw_irrigation"]
     wpl_tif = global_data["wpl_tif"]
     population_tif = global_data["population_tif"]
-    
+
     sw_supply_fraction_tif = fractions(metadata['lu'], sw_supply_fractions, lucs, output_dir, filename = 'sw_supply_fraction.tif')
     sw_supply_fraction_tif = update_irrigation_fractions(metadata['lu'], sw_supply_fraction_tif, lucs, equiped_sw_irrigation_tif)
 
     non_recov_fraction_tif = non_recoverable_fractions(metadata['lu'], wpl_tif, lucs, output_dir)
     sw_return_fraction_tif = fractions(metadata['lu'], sw_return_fractions, lucs, output_dir, filename = 'sw_return_fraction.tif')
-    
+
     supply_gw = supply_sw = return_flow_sw_sw = return_flow_sw_gw = return_flow_gw_sw = return_flow_gw_gw = np.array([])
-    
+
     bf_ts = cr_ts = vgw_ts = vr_ts = rfg_ts = rfs_ts = ds_ts = np.array([])
-    
-    for date in complete_data['etb'][1]:
+
+    complete_data['recharge'] = calc_recharge(complete_data['perc'], complete_data['dperc'])
+
+    common_dates = becgis.CommonDates([complete_data['recharge'][1],
+                                       complete_data['etb'][1],
+                                       complete_data['lai'][1],
+                                       complete_data['etref'][1],
+                                       complete_data['p'][1],
+                                       complete_data['bf'][1]])
+
+    other_consumed_tif = None
+    non_conventional_et_tif = None
+
+    for date in common_dates:
         
         conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
 
-        other_consumed_tif = None
-        non_conventional_et_tif = None
-        
         ###
         # Calculate supply and split into GW and SW supply
         ###
         total_supply_tif = total_supply(conventional_et_tif, other_consumed_tif, metadata['lu'], lucs, consumed_fractions, output_dir, date)
 
-        residential_demand = include_residential_supply(population_tif, metadata['lu'], total_supply_tif, date, lucs, 110, wcpc_minimal = 100)
-        
         supply_sw_tif, supply_gw_tif = split_flows(total_supply_tif, sw_supply_fraction_tif, output_dir, date, flow_names = ['SUPPLYsw','SUPPLYgw'])
+
+        supply_gw = np.append(supply_gw, supply_gw_tif)
+        supply_sw = np.append(supply_sw, supply_sw_tif)
     
+    complete_data['total_supply'] = becgis.SortFiles(os.path.join(output_dir, 'total_supply'), [-10,-6], month_position = [-6,-4])[0:2]
+    complete_data['supply_gw'] = becgis.SortFiles(os.path.join(output_dir, 'SUPPLYgw'), [-11,-7], month_position = [-6,-4])[0:2]
+    complete_data['supply_sw'] = becgis.SortFiles(os.path.join(output_dir, 'SUPPLYsw'), [-11,-7], month_position = [-6,-4])[0:2]
+#    complete_data['supply_gw'] = (supply_gw, common_dates)
+#    complete_data['supply_sw'] = (supply_sw, common_dates)
+
+    ###
+    # Correct outflow to match with GRACE storage
+    ###
+    correct_var(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_sw')
+    update_gw_supply(complete_data)
+
+    for date in common_dates:
+
+        total_supply_tif = complete_data['total_supply'][0][complete_data['total_supply'][1] == date][0]
+        supply_sw_tif = complete_data['supply_sw'][0][complete_data['supply_sw'][1] == date][0]
+        supply_gw_tif = complete_data['supply_gw'][0][complete_data['supply_gw'][1] == date][0]
+        conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
         ###
         # Calculate non-consumed supplies per source
         ###
         non_consumed_tif = calc_delta_flow(total_supply_tif, conventional_et_tif, output_dir, date)
         non_consumed_sw_tif, non_consumed_gw_tif = split_flows(non_consumed_tif, sw_supply_fraction_tif, output_dir, date, flow_names = ['NONCONSUMEDsw', 'NONCONSUMEDgw'])
-    
+
         ###
         # Calculate (non-)recoverable return flows per source
         ###
         non_recov_tif, recov_tif = split_flows(non_consumed_tif, non_recov_fraction_tif, output_dir, date, flow_names = ['NONRECOV', 'RECOV'])
         recov_sw_tif, recov_gw_tif = split_flows(recov_tif, sw_return_fraction_tif, output_dir, date, flow_names = ['RECOVsw', 'RECOVgw'])
         non_recov_sw_tif, non_recov_gw_tif = split_flows(non_recov_tif, sw_return_fraction_tif, output_dir, date, flow_names = ['NONRECOVsw', 'NONRECOVgw'])
-    
+
         ###
         # Caculate return flows to gw and sw
         ###
         return_flow_sw_sw_tif, return_flow_sw_gw_tif = split_flows(non_consumed_sw_tif, sw_return_fraction_tif, output_dir, date, flow_names = ['RETURNFLOW_swgw', 'RETURNFLOW_swsw'])
         return_flow_gw_sw_tif, return_flow_gw_gw_tif = split_flows(non_consumed_gw_tif, sw_return_fraction_tif, output_dir, date, flow_names = ['RETURNFLOW_gwsw', 'RETURNFLOW_gwgw'])
-    
+
         ###
         # Calculate the blue water demand
         ###
         demand_tif = calc_demand(complete_data['lai'][0][complete_data['lai'][1] == date][0], complete_data['etref'][0][complete_data['etref'][1] == date][0], complete_data['p'][0][complete_data['p'][1] == date][0], metadata['lu'], date, output_dir)
 
+        residential_demand = include_residential_supply(population_tif, metadata['lu'], total_supply_tif, date, lucs, 110, wcpc_minimal = 100)
+
         set_classes_to_value(demand_tif, metadata['lu'], lucs['Residential'], value = residential_demand)
-        
+
         ###
         # Create sheet 4
         ###
@@ -105,24 +200,24 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         create_sheet4(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), ['km3/month', 'km3/month'], [sheet4_csv, sheet4_csv], 
                           [sheet4_csv.replace('.csv','_a.png'), sheet4_csv.replace('.csv','_b.png')], template = [r"C:\Users\bec\Dropbox\UNESCO\Scripts\bert\sheet_svgs\sheet_4_part1.svg", r"C:\Users\bec\Dropbox\UNESCO\Scripts\bert\sheet_svgs\sheet_4_part2.svg"])
         
-        supply_gw = np.append(supply_gw, supply_gw_tif)
-        supply_sw = np.append(supply_sw, supply_sw_tif)
         return_flow_sw_sw = np.append(return_flow_sw_sw, return_flow_sw_sw_tif)
         return_flow_sw_gw = np.append(return_flow_sw_gw, return_flow_sw_gw_tif)
         return_flow_gw_sw = np.append(return_flow_gw_sw, return_flow_gw_sw_tif)
         return_flow_gw_gw = np.append(return_flow_gw_gw, return_flow_gw_gw_tif)
         
         print "sheet 4 finished for {0} (going to {1})".format(date, complete_data['etb'][1][-1])
-        complete_data["bf"][0][complete_data["bf"][1] == date][0]
+        
+        #complete_data["bf"][0][complete_data["bf"][1] == date][0]
+        
         recharge_tif = complete_data["r"][0][complete_data["r"][1] == date][0]
         baseflow = accumulate_per_classes(metadata['lu'], complete_data["bf"][0][complete_data["bf"][1] == date][0], range(1,81), scale = 1e-6)
         capillaryrise = 0.01 * accumulate_per_classes(metadata['lu'], supply_gw_tif, range(1,81), scale = 1e-6)
-    
+
         entries_sh6 = {'VERTICAL_RECHARGE': recharge_tif,
                        'VERTICAL_GROUNDWATER_WITHDRAWALS': supply_gw_tif,
                        'RETURN_FLOW_GROUNDWATER': return_flow_gw_gw_tif,
                        'RETURN_FLOW_SURFACEWATER':return_flow_sw_gw_tif}
-    
+
         entries_2_sh6 = {'CapillaryRise': capillaryrise,
                          'DeltaS': 'nan',
                          'ManagedAquiferRecharge': 'nan',
@@ -164,12 +259,10 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
                           [cv.replace('.csv','_a.png'), cv.replace('.csv','_b.png')], template = [r"C:\Users\bec\Dropbox\UNESCO\Scripts\bert\sheet_svgs\sheet_4_part1.svg", r"C:\Users\bec\Dropbox\UNESCO\Scripts\bert\sheet_svgs\sheet_4_part2.svg"])
 
         
-    complete_data['supply_gw'] = (supply_gw, complete_data['etb'][1])
-    complete_data['supply_sw'] = (supply_sw, complete_data['etb'][1])
-    complete_data['return_flow_sw_sw'] = (return_flow_sw_sw, complete_data['etb'][1])
-    complete_data['return_flow_sw_gw'] = (return_flow_sw_gw, complete_data['etb'][1])
-    complete_data['return_flow_gw_sw'] = (return_flow_gw_sw, complete_data['etb'][1])
-    complete_data['return_flow_gw_gw'] = (return_flow_gw_gw, complete_data['etb'][1])
+    complete_data['return_flow_sw_sw'] = (return_flow_sw_sw, common_dates)
+    complete_data['return_flow_sw_gw'] = (return_flow_sw_gw, common_dates)
+    complete_data['return_flow_gw_sw'] = (return_flow_gw_sw, common_dates)
+    complete_data['return_flow_gw_gw'] = (return_flow_gw_gw, common_dates)
     
     ####
     ## Remove some datasets
@@ -419,7 +512,7 @@ def include_residential_supply(population_fh, lu_fh, total_supply_fh, date, shee
         The accumulated minimal required water supply converted into [km3], only 
         returned if wcpc_minimal is not None.    
     """
-    temp_folder = tempfile.mkdtemp()
+    temp_folder = tf.mkdtemp()
     
     population_fh = becgis.MatchProjResNDV(lu_fh, np.array([population_fh]), temp_folder)
     
@@ -783,7 +876,7 @@ def total_supply(conventional_et_fh, other_consumed_fh, lu_fh, lu_categories, sh
         os.makedirs(output_folder)
     
     if isinstance(date, datetime.date):
-        output_fh = os.path.join(output_folder, 'total_supply_{0}_{1}.tif'.format(date.year,str(date.month).zfill(2)))
+        output_fh = os.path.join(output_folder, 'total_supply_{0}{1}.tif'.format(date.year,str(date.month).zfill(2)))
     else:
         output_fh = os.path.join(output_folder, 'total_supply_{0}.tif'.format(date))
     
@@ -843,7 +936,7 @@ def upstream_of_lu_class(dem_fh, lu_fh, output_folder, clss = 63):
     if clss is not None:
         import pcraster as pcr
         
-        temp_folder = tempfile.mkdtemp()
+        temp_folder = tf.mkdtemp()
         extra_temp_folder = os.path.join(temp_folder, "out")
         os.makedirs(extra_temp_folder)
         
@@ -2018,7 +2111,7 @@ def plot_storages(ds_ts, bf_ts, cr_ts, vgw_ts, vr_ts, rfg_ts, rfs_ts, dates, out
     ax.fill_between(dtes, dScum, y2 = zeroes, where = dScum >= zeroes, color = '#6bb8cc', label = 'Storage increase')
     ax.scatter(dates, np.cumsum(np.append(0., ds_ts))[1:] * -1, color = 'k')
     ax.set_xlabel('Time')
-    ax.set_ylabel('Cumulative dS [0.1 km3/month]')
+    ax.set_ylabel('Cumulative dS [0.1 km3]')
     ax.set_title('Cumulative dS, {0}'.format(catchment_name))
     ax.set_xlim([dtes[0], dtes[-1]])
     fig.autofmt_xdate()
@@ -2026,7 +2119,7 @@ def plot_storages(ds_ts, bf_ts, cr_ts, vgw_ts, vr_ts, rfg_ts, rfs_ts, dates, out
     ax.set_position([box.x0, box.y0 + box.height * 0.1,box.width, box.height * 0.9])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.21),fancybox=True, shadow=True, ncol=5)
     [i.set_zorder(10) for i in ax.spines.itervalues()]
-    plt.savefig(os.path.join(output_folder, 'water_storage_{1}.{0}'.format(extension, dates[0].year)))
+    plt.savefig(os.path.join(output_folder, 'sheet6_water_storage_{1}.{0}'.format(extension, dates[0].year)))
     
     fig = plt.figure(figsize = (10,10))
     plt.clf()
@@ -2051,7 +2144,7 @@ def plot_storages(ds_ts, bf_ts, cr_ts, vgw_ts, vr_ts, rfg_ts, rfs_ts, dates, out
     ax.set_position([box.x0, box.y0 + box.height * 0.1,box.width, box.height * 0.9])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.21),fancybox=True, shadow=True, ncol=5)
     [i.set_zorder(10) for i in ax.spines.itervalues()]
-    plt.savefig(os.path.join(output_folder, 'water_balance_{1}.{0}'.format(extension, dates[0].year)))
+    plt.savefig(os.path.join(output_folder, 'sheet6_water_balance_{1}.{0}'.format(extension, dates[0].year)))
 
 
 
