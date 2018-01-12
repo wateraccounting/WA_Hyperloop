@@ -392,7 +392,7 @@ def LoopSurfWat(waterpix, metadata, global_data, big_basins = None):
     return surfwater_path
     
 def sort_data_short(output_dir, metadata):
-    data = ['p', 'et', 'n', 'ndm', 'lai', 'etref', 'etb', 'etg', 'i', 't', 'r', 'bf', 'sr', 'tr']
+    data = ['p', 'et', 'n', 'ndm', 'lai', 'etref', 'etb', 'etg', 'i', 't', 'r', 'bf', 'sr', 'tr', 'perc', 'dperc']
     complete_data = dict()
     for datatype in data:
         try:
@@ -404,7 +404,7 @@ def sort_data_short(output_dir, metadata):
         except: 
             print datatype
             continue
-    data_2 = ['SUPPLYsw','RETURNFLOW_gwsw','RETURNFLOW_swsw',r'fractions\fractions']
+#    data_2 = ['SUPPLYsw','RETURNFLOW_gwsw','RETURNFLOW_swsw',r'fractions\fractions']
     
     data_2dict = {'SUPPLYsw': 'supply_sw',
                   'RETURNFLOW_gwsw': 'return_flow_gw_sw',
@@ -412,7 +412,7 @@ def sort_data_short(output_dir, metadata):
                   r'fractions\fractions': 'fractions'
                   }
 
-    for datatype in data_2:
+    for datatype in data_2dict.keys():
         try:
             folder = os.path.join(output_dir, metadata['name'], datatype)
             for fn in glob.glob(folder + "\\*_km3.tif"):
@@ -454,9 +454,9 @@ def sort_data(data, metadata, global_data, output_dir):
 
 def sort_var(data, metadata, global_data, output_dir, key, complete_data):
     files, dates = becgis.SortFiles(data[key], [-10,-6], month_position = [-6,-4])[0:2]
-    scales = {'p': metadata['p_scale'], 'et': metadata['et_scale'], 'n': 1.0, 'ndm': 1.0, 'lai': 1.0, 'etref': 1.0, 'r': 1.0, 'bf': 1.0, 'tr': 1.0, 'sr': 1.0}
+    scales = {'p': metadata['p_scale'], 'et': metadata['et_scale'], 'n': 1.0, 'ndm': 1.0, 'lai': 1.0, 'etref': 1.0, 'r': 1.0, 'bf': 1.0, 'tr': 1.0, 'sr': 1.0, 'perc': 1.0, 'dperc': 1.0}
     var_name = key.split('_folder')[0]
-    files = becgis.MatchProjResNDV(metadata['lu'], files, os.path.join(output_dir, metadata['name'], var_name), resample = 'near', dtype = 'float32', scale = scales[var_name])
+    files = becgis.MatchProjResNDV(metadata['lu'], files, os.path.join(output_dir, var_name), resample = 'near', dtype = 'float32', scale = scales[var_name])
     complete_data[var_name] = (files, dates)
     return complete_data
     
