@@ -319,7 +319,7 @@ def diagnosis_wp(metadata, complete_data, output_dir, waterpix):
 
 def scale_factor(scale_test):
     scale = 0
-    while scale_test < 10.000:
+    while np.all([scale_test < 10.000, scale_test != 0.0]):
         scale_test *= 10
         scale += 1
     scale = float(np.min([2,scale]))
