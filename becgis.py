@@ -11,16 +11,80 @@ import collections
 import tempfile
 from scipy import ndimage
 
-#ix = np.floor((ncfile.variables['XTIME'][1:])/1440).astype(np.int)
-##print zip(netCDF4.num2date(ncfile.variables['XTIME'][:], ncfile.variables['XTIME'].units), ix)
-#zs = np.zeros((np.unique(ix).size, ysize, xsize))
-#for var in variables:
-#    print np.max(ncfile.variables[var][:,:,:])
-#    np.add.at(zs, ix, ncfile.variables[var][1:,:,:])
+from WA_Hyperloop.paths import get_path
+
+
+def mm_to_km3(lu_fh, var_fhs):
+    area =  MapPixelAreakm(lu_fh)
+    driver, NDV, xsize, ysize, GeoT, Projection = GetGeoInfo(lu_fh)
+    var_new_fhs = list()
+    for var_fh in var_fhs:
+        var = OpenAsArray(var_fh)
+        var[np.where(var==-9999)]=np.nan
+        var_area = (var*area)/1000000
+        var_new_fh = var_fh.replace('.tif', '_km3.tif')
+        CreateGeoTiff(var_new_fh, var_area, driver, NDV, xsize, ysize, GeoT, Projection, explicit = False)
+        var_new_fhs.append(var_new_fh)
+    return var_new_fhs
+
 
 def FlipDict(dictionary):
     dictb = dict((v,k) for k, v in dictionary.items())
     return dictb
+
+
+def calc_basinmean(perc_fh, lu_fh):
+    """
+    Calculate the mean of a map after masking out the areas outside an basin defined by
+    its landusemap.
+    
+    Parameters
+    ----------
+    perc_fh : str
+        Filehandle pointing to the map for which the mean needs to be determined.
+    lu_fh : str
+        Filehandle pointing to landusemap.
+    
+    Returns
+    -------
+    percentage : float
+        The mean of the map within the border of the lu_fh.
+    """
+    output_folder = tempfile.mkdtemp()
+    perc_fh = MatchProjResNDV(lu_fh, np.array([perc_fh]), output_folder)
+    EWR = OpenAsArray(perc_fh[0], nan_values = True)
+    LULC = OpenAsArray(lu_fh, nan_values = True)
+    EWR[np.isnan(LULC)] = np.nan
+    percentage = np.nanmean(EWR)
+    shutil.rmtree(output_folder)
+    return percentage
+
+def set_classes_to_value(fh, lu_fh, classes, value = 0):
+    """
+    Open a rasterfile and change certain pixels to a new value. Classes and
+    lu_fh is used to create a mask. The mask is then used to the pixel values
+    in fh to value.
+    
+    Parameters
+    ----------
+    fh : str
+        Filehandle pointing to georeferenced tiff raster map.
+    lu_fh : str
+        Filehandle pointing to georeferenced tiff raster map. Should have same
+        dimensions as fh.
+    classes : list
+        List with values, the values are looked up in lu_fh, the corresponding 
+        pixels in fh are then changed.
+    value : float or int, optional
+        Value to change the pixelvalues in fh into.
+    """
+    ALPHA = OpenAsArray(fh, nan_values = True)
+    LULC = OpenAsArray(lu_fh)
+    mask = np.logical_or.reduce([LULC == x for x in classes])
+    ALPHA[mask] = value
+    driver, NDV, xsize, ysize, GeoT, Projection = GetGeoInfo(lu_fh)
+    CreateGeoTiff(fh, ALPHA, driver, NDV, xsize, ysize, GeoT, Projection)
+
     
 def GapFil(input_tif, footprint, output_folder, method = 'max'):
     """
@@ -573,7 +637,7 @@ def Unzip(list_of_tuples):
     out = [np.array(list(t)) for t in zip(*list_of_tuples)]
     return out
 
-def MatchProjResNDV(source_file, target_fhs, output_dir, resample = 'near', dtype = 'float32', scale = None):
+def MatchProjResNDV(source_file, target_fhs, output_dir, resample = 'near', dtype = 'float32', scale = None, ndv_to_zero = False):
     """
     Matches the projection, resolution and no-data-value of a list of target-files
     with a source-file and saves the new maps in output_dir.
@@ -607,7 +671,7 @@ def MatchProjResNDV(source_file, target_fhs, output_dir, resample = 'near', dtyp
         t_srs, t_ts, t_te, t_ndv = GetGdalWarpInfo(target_file)
         output_file = os.path.join(output_dir, fn)
         if not np.all([s_ts == t_ts, s_te == t_te, s_srs == t_srs, s_ndv == t_ndv]):
-            string = '{10} -overwrite -t_srs {1} -te {2} -ts {3} -srcnodata {4} -dstnodata {5} -r {6} -ot {7} -of GTiff {8} {9}'.format(t_srs, s_srs, s_te, s_ts, t_ndv, s_ndv, resample, dtype, target_file, output_file, r"C:\Program Files\QGIS 2.18\bin\gdalwarp.exe")
+            string = '{10} -overwrite -t_srs {1} -te {2} -ts {3} -srcnodata {4} -dstnodata {5} -r {6} -ot {7} -of GTiff {8} {9}'.format(t_srs, s_srs, s_te, s_ts, t_ndv, s_ndv, resample, dtype, target_file, output_file, get_path('gdalwarp'))
             proc = subprocess.Popen(string, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = proc.communicate()
             #print out, err
@@ -617,6 +681,11 @@ def MatchProjResNDV(source_file, target_fhs, output_dir, resample = 'near', dtyp
         if not np.any([scale == 1.0, scale == None, scale == 1]):
             driver, NDV, xsize, ysize, GeoT, Projection = GetGeoInfo(output_file)
             DATA = OpenAsArray(output_file, nan_values = True) * scale
+            CreateGeoTiff(output_file, DATA, driver, NDV, xsize, ysize, GeoT, Projection)
+        if ndv_to_zero:
+            driver, NDV, xsize, ysize, GeoT, Projection = GetGeoInfo(output_file)
+            DATA = OpenAsArray(output_file, nan_values = False)
+            DATA[DATA == NDV] = 0.0
             CreateGeoTiff(output_file, DATA, driver, NDV, xsize, ysize, GeoT, Projection)
     return output_files
 
@@ -728,7 +797,7 @@ def GetMonthLabels():
     month_labels = {1:'01',2:'02',3:'03',4:'04',5:'05',6:'06',7:'07',8:'08',9:'09',10:'10',11:'11',12:'12'}
     return month_labels
     
-def CreateGeoTiff(fh, Array, driver, NDV, xsize, ysize, GeoT, Projection):
+def CreateGeoTiff(fh, Array, driver, NDV, xsize, ysize, GeoT, Projection, explicit = True):
     """
     Creates a geotiff from a numpy array.
     
@@ -757,7 +826,8 @@ def CreateGeoTiff(fh, Array, driver, NDV, xsize, ysize, GeoT, Projection):
     DataSet = driver.Create(fh,xsize,ysize,1,datatypes[Array.dtype.name])
     if NDV is None:
         NDV = -9999
-    Array[np.isnan(Array)] = NDV
+    if explicit:
+        Array[np.isnan(Array)] = NDV
     DataSet.GetRasterBand(1).SetNoDataValue(NDV)
     DataSet.SetGeoTransform(GeoT)
     DataSet.SetProjection(Projection.ExportToWkt())
@@ -1043,7 +1113,29 @@ def Flatten(l):
                 yield sub
         else:
             yield el
-       
+
+
+def Ysum(fhs, fh3):
+    """
+    sum maps with each other and store the results in a new map.
+   
+    Parameters
+    ----------
+    fhs : list of maps to sum
+    fh3 : str
+        Filehandle indicating where to store the results.
+    """
+    FH3 = OpenAsArray(fhs[0], nan_values = True) * 0
+    for fh in fhs:
+        FH3 = np.nansum((FH3, OpenAsArray(fh, nan_values = True)),0)
+   
+    if not os.path.exists(os.path.split(fh3)[0]):
+        os.makedirs(os.path.split(fh3)[0])
+   
+    driver, NDV, xsize, ysize, GeoT, Projection = GetGeoInfo(fhs[0])
+    CreateGeoTiff(fh3, FH3, driver, NDV, xsize, ysize, GeoT, Projection)
+    
+
 def Aggregate(fhs, fh = None):
     """
     Calculate the sum of multiple geotiffs.

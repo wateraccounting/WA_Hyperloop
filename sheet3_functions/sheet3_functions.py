@@ -5,22 +5,24 @@ Created on Tue Nov 15 14:21:43 2016
 @author: bec
 """
 import os
-import WA_Hyperloop.becgis as becgis
-from dateutil.relativedelta import relativedelta
+import csv
 import datetime
 import numpy as np
 import calendar
+from dateutil.relativedelta import relativedelta
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
-import csv
+
+
+import WA_Hyperloop.becgis as becgis
 import WA_Hyperloop.get_dictionaries as gd
-import wa
+from WA_Hyperloop.paths import get_path
 
 def create_sheet3(complete_data, metadata, output_dir):
     
-    output_dir = os.path.join(output_dir, metadata['name'])
+    output_dir = os.path.join(output_dir, metadata['name'], 'sheet3')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
@@ -35,8 +37,8 @@ def create_sheet3(complete_data, metadata, output_dir):
             start_dates, end_dates = import_growing_seasons(crop[0])
             result_seasonly = calc_Y_WP_seasons(start_dates, end_dates, metadata['lu'], crop[4], crop[1], complete_data['etg'][0], complete_data['etg'][1], complete_data['etb'][0], complete_data['etb'][1], complete_data['ndm'][0], complete_data['ndm'][1], complete_data['p'][0], complete_data['p'][1], os.path.join(output_dir, 'WP_Y_Seasonly_csvs'), HIWC_dict, ab = (1.0,0.9))
             result = calc_Y_WP_year(result_seasonly, os.path.join(output_dir, 'WP_Y_Yearly_csvs'), crop[1])
-            plot_Y_WP(result, os.path.join(output_dir,'WP_Y_Yearly_graphs'), croptype = crop[1], catchment_name = metadata['name'], filetype = 'jpg')
-            plot_Y_WP(result_seasonly, os.path.join(output_dir,'WP_Y_Seasonly_graphs'), croptype = crop[1], catchment_name = metadata['name'], filetype = 'jpg')
+            plot_Y_WP(result, os.path.join(output_dir,'WP_Y_Yearly_graphs'), croptype = crop[1], catchment_name = metadata['name'], filetype = 'png')
+            plot_Y_WP(result_seasonly, os.path.join(output_dir,'WP_Y_Seasonly_graphs'), croptype = crop[1], catchment_name = metadata['name'], filetype = 'png')
             if crop[4] > 50:
                 wp_y_irrigated_dictionary[crop[2]][crop[3]] = result
             else:
@@ -50,7 +52,7 @@ def create_sheet3(complete_data, metadata, output_dir):
         for i, non_crop in enumerate([metadata['non_crop']['meat'], metadata['non_crop']['milk'], metadata['non_crop']['aquaculture'], metadata['non_crop']['timber']]):
             years[i] = [date.year for date in read_csv(non_crop)[0]][1:]
             crp = ['Meat', 'Milk', 'Aquaculture', 'Timber']
-            plot_Y_WP(result, os.path.join(output_dir,'WP_Y_Yearly_graphs'), croptype = crp[i], catchment_name = metadata['name'], filetype = 'jpg')
+            plot_Y_WP(result, os.path.join(output_dir,'WP_Y_Yearly_graphs'), croptype = crp[i], catchment_name = metadata['name'], filetype = 'png')
 
     years = becgis.CommonDates(years.values())
     
@@ -62,9 +64,9 @@ def create_sheet3(complete_data, metadata, output_dir):
 
     for year in years:
         csv_fh_a, csv_fh_b = create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_non_crop_dictionary, year, output_dir)
-        output_fh_a = csv_fh_a[:-3] + 'pdf'
-        output_fh_b = csv_fh_b[:-3] + 'pdf'
-        sheet3a_fh, sheet3b_fh = wa.Sheets.create_sheet3(metadata['name'], str(year), ['km3/year', 'kg/ha/year', 'kg/m3'], [csv_fh_a, csv_fh_b], [output_fh_a, output_fh_b])
+        output_fh_a = csv_fh_a[:-3] + 'png'
+        output_fh_b = csv_fh_b[:-3] + 'png'
+        sheet3a_fh, sheet3b_fh = create_sheet3_png(metadata['name'], str(year), ['km3/year', 'kg/ha/year', 'kg/m3'], [csv_fh_a, csv_fh_b], [output_fh_a, output_fh_b], template = [get_path('sheet3_1_svg'),get_path('sheet3_2_svg')])
      
     return complete_data
 
@@ -120,7 +122,7 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
             'Fish (Aquaculture)': {'-':None},
             'Timber': {'-':None}}
     """
-    output_dir = os.path.join(output_dir, 'sheet3')
+    output_dir = os.path.join(output_dir, 'sheet3_yearly')
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
@@ -199,475 +201,7 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
     csv_file_b.close()
     
     return output_csv_fh_a, output_csv_fh_b
-    
-def splitET_BlueGreen(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dates, lu_fh, output_dir, 
-                      moving_avg_length = 7, green_blue_categories = None, plot_graph = True, 
-                      method = 'tail', scale = 1.1, basin = ''):
-    """
-    Splits georeferenced evapotranspiration rastermaps into blue and green evapotranspiration maps.
-    
-    Parameters
-    ----------
-    et_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced evapotranspiration rastermaps.
-    et_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in et_fhs. Length should be equal
-        to et_fhs.
-    etref_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced reference evapotranspiration rastermaps.
-    etref_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etref_fhs. Length should be equal
-        to etref_fhs.
-    p_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced precipitation rastermaps.
-    p_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in p_fhs. Length should be equal
-        to p_fhs.
-    lu_fh : str
-        Filehandle pointing to a landusemap.
-    output_dir : str
-        String pointing to a folder to store output
-    moving_average_length : int or dict, optional
-        Number of months used to calculate averages. Default is 7. In case a dictionary is provided,
-        different lengths can be specified per landuse category.
-    green_blue_categories : dict
-        Dictionary indicating which landuseclasses belong to which category.
-    plot_graph : boolean, optional
-        Create a graph of the ETblue and ETgreen timeseries when True. Default is True.
-    method : str, optional
-        Method to calculate the average for ET0 and P. Default is 'tail', other option is 'central'.
-    scale : float, optional
-        Increase the budyko water-limit. Default is 1.1.
-        
-    Returns
-    -------
-    etblue_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced blue-evapotranspiration rastermaps.
-    etblue_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etblue_fhs. Length is equal
-        to et_fhs.
-    etgreen_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced green-evapotranspiration rastermaps.
-    etgreen_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etgreen_fhs. Length is equal
-        to etgreen_fhs.
-    """
-    becgis.AssertProjResNDV([et_fhs, etref_fhs, p_fhs])
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(et_fhs[0])
-    
-    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
-     
-    common_dates = becgis.CommonDates([et_dates, etref_dates, p_dates])
-    
-    if type(moving_avg_length) is dict:
-        max_moving_avg_length = np.max(moving_avg_length.values())
-        becgis.plot_category_areas(lu_fh, green_blue_categories, os.path.join(output_dir, 'Landuse_Areas.png'), area_treshold = 0.01)
-        if method == 'central':
-            dts = common_dates[(max_moving_avg_length-1)/2:len(common_dates)-(max_moving_avg_length-1)/2]
-            for value in moving_avg_length.values():
-                assert (value % 2) != 0, "Please provide only uneven lengths when using method 'central'"
-        elif method == 'tail':
-            dts = common_dates[max_moving_avg_length-1:]
-        assert green_blue_categories is not None, "Please provide a dictionary specifying the different landusecategories."
-    else:
-        max_moving_avg_length = moving_avg_length
-        if method == 'central':
-            dts = common_dates[(max_moving_avg_length-1)/2:len(common_dates)-(max_moving_avg_length-1)/2]
-            assert (moving_avg_length % 2) != 0, "Please provide a uneven moving average length."
-        elif method == 'tail':
-            dts = common_dates[max_moving_avg_length-1:]
-       
-    becgis.AssertMissingDates(common_dates, timescale = 'months')
-    
-    directory_etgreen = os.path.join(output_dir, "etg")
-    if not os.path.exists(directory_etgreen):
-        os.makedirs(directory_etgreen)
-    
-    directory_etblue = os.path.join(output_dir, "etb")
-    if not os.path.exists(directory_etblue):
-        os.makedirs(directory_etblue)
-        
-    print("Starting calculation of Blue and Green ET for {0} months between {1} and {2}.".format(len(dts), dts[0], dts[-1]))
-    
-    if plot_graph:
-        etblue = np.array([])
-        etgreen = np.array([])
-        et = np.array([])
-        p = np.array([])
-        pavg = np.array([])
-    
-        rows = 4
-        cols = 3
-        
-        row_no = np.sort(range(rows)*cols)
-        col_no = range(cols)*rows
-        
-        stats = becgis.ZonalStats(p_fhs, p_dates, output_dir, 'Precipitation', '[mm/month]', basin)
-        vmax = np.round((stats[0]*1.1)/10)*10
-        
-        directory_budyko = os.path.join(output_dir, "Budyko_Curves")
-        if not os.path.exists(directory_budyko):
-            os.makedirs(directory_budyko)
-    
-    for date in dts:
-        
-        P = becgis.OpenAsArray(p_fhs[p_dates == date][0], nan_values = True)
-        ET  = becgis.OpenAsArray(et_fhs[et_dates == date][0], nan_values = True)
-        ETREF = becgis.OpenAsArray(etref_fhs[etref_dates == date][0], nan_values = True)
-        
-        if type(moving_avg_length) is dict:
-            Pavg = becgis.MaskedMovingAverage(date, p_fhs, p_dates, lu_fh, moving_avg_length, green_blue_categories, method = method)
-            ETREFavg = becgis.MaskedMovingAverage(date, etref_fhs, etref_dates, lu_fh, moving_avg_length, green_blue_categories, method = method)    
-            lu_dependent = True
-        else:
-            Pavg = becgis.MovingAverage(date, p_fhs, p_dates, moving_avg_length = moving_avg_length, method = method)
-            ETREFavg = becgis.MovingAverage(date, etref_fhs, etref_dates, moving_avg_length = moving_avg_length, method = method)
-            lu_dependent = False
-        
-        if np.all([np.any([date.month == 1, date == dts[0]]), plot_graph]):
-            maxim = mayim = 0.0
-            fig, axarr = plt.subplots(rows, cols, sharex=True, sharey=True, figsize = (8.27, 11.69))
-            title = 'Budyko Curves \n (P_{0}, {1} months, lu_dependent: {2}, scale: {3})'.format(method, max_moving_avg_length, lu_dependent, scale)
-        
-        mask = np.any([np.isnan(LULC), np.isnan(ET), np.isnan(ETREF), np.isnan(P), np.isnan(Pavg), np.isnan(ETREFavg)], axis=0)
-        ETREF[mask] = ETREFavg[mask] = ET[mask] = P[mask] = Pavg[mask] = np.nan
-        
-        phi = ETREFavg / Pavg
-      
-        ## Calculate Bydyko-index
-        budyko = scale * np.sqrt(phi*np.tanh(1/phi)*(1-np.exp(-phi)))
-         
-        ETgreen = np.minimum(budyko*P,ET)
-        
-        ## Calculate blue ET
-        ETblue = ET - ETgreen
-        
-        ## Save ETgreen-map
-        output_fh = os.path.join(directory_etgreen, 'ETgreen_{0}{1}.tif'.format(date.year,str(date.month).zfill(2)))
-        becgis.CreateGeoTiff(output_fh, ETgreen, driver, NDV, xsize, ysize, GeoT, Projection)
 
-        ## Save ETblue-map
-        output_fh = os.path.join(directory_etblue, 'ETblue_{0}{1}.tif'.format(date.year,str(date.month).zfill(2)))
-        becgis.CreateGeoTiff(output_fh, ETblue, driver, NDV, xsize, ysize, GeoT, Projection)
-        
-        if plot_graph:
-            
-            etblue = np.append(etblue, np.nanmean(ETblue))
-            etgreen = np.append(etgreen, np.nanmean(ETgreen))
-            et = np.append(et, np.nanmean(ET))
-            p = np.append(p, np.nanmean(P))
-            pavg = np.append(pavg, np.nanmean(Pavg))
-            
-            frac_ETa = ET/Pavg
-
-            if green_blue_categories:
-                from matplotlib.colors import LinearSegmentedColormap
-                n_cats = len(green_blue_categories)
-                clrs = ['#6bb8cc','#87c5ad', '#9ad28d', '#acd27a', '#c3b683', '#d4988b', '#b98b89', '#868583', '#497e7c',
-                        '#6bb8cc','#87c5ad', '#9ad28d', '#acd27a', '#c3b683', '#d4988b', '#b98b89', '#868583', '#497e7c']
-                cmap = LinearSegmentedColormap.from_list('LUC', clrs[0:n_cats], N = n_cats)
-                C = np.ones_like(LULC)
-                for i, key in enumerate(green_blue_categories.keys()):
-                    classes = green_blue_categories[key]
-                    mask = np.logical_or.reduce([LULC == value for value in classes])
-                    C[mask] += i
-                vmin = 0.5
-                vmax = vmin + n_cats
-                
-            else:
-                C = P
-                vmin = 0
-                cmap = 'viridis'
-                
-            im = axarr[row_no[date.month-1],col_no[date.month-1]].scatter(phi, frac_ETa, c=C, marker = '.', alpha=1.0, lw=0.0, cmap=cmap, vmin = vmin, vmax = vmax)
-
-            maxim = np.max([maxim,np.nanmax(phi)])
-            mayim = np.max([mayim,np.nanmax(frac_ETa)])
-            
-            axarr[row_no[date.month-1],col_no[date.month-1]].set_title('{0}'.format(date))
-        
-        print(date)
-        
-        if np.all([np.any([date.month == 12, date == dts[-1]]), plot_graph]):
-            
-            x = np.arange(0,maxim*1.2,0.1)
-            y = scale * np.sqrt(x*np.tanh(1/x)*(1-np.exp(-x)))
-            
-            for row, col in zip(row_no, col_no):
-                axarr[row,col].set_xlim([0,maxim*1.1])
-                axarr[row,col].set_ylim([0,max(1.1,mayim*1.1)])
-                im2, = axarr[row,col].plot(x,y,'-k' , label = 'Budyko Curve')
-                axarr[row,col].plot(x,x*scale,'--k', label = 'Energy Limit')
-                axarr[row,col].plot(x,np.ones_like(x)*scale,'--k', label = 'Water Limit')
-                
-                if row == max(row_no):
-                    axarr[row,col].set_xlabel(r'ET0avg/Pavg')
-                if col == min(col_no):
-                    axarr[row,col].set_ylabel(r'ETa/Pavg or Max_ETg/P')
-            
-            fig.subplots_adjust(right=0.8)
-            cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-            
-            if green_blue_categories:
-                cbar = fig.colorbar(im, cax=cbar_ax)
-                cbar.set_ticks(range(1,n_cats + 1))
-                cbar.set_ticklabels(green_blue_categories.keys())
-            else:
-                cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-                cbar = fig.colorbar(im, cax=cbar_ax, label = 'P [mm/month]')
-            
-            fig.suptitle(title, fontsize = 13)
-            fig.legend([im, im2], ('ETa/Pavg', 'Max_ETgreen/P'), 'lower center', ncol =2, fancybox=True, shadow=True)
-            fig.autofmt_xdate(bottom=0.2, rotation=30, ha='right')
-            
-            print("Saving Budyko plot for {0}...".format(date.year))
-            
-            plt.savefig(os.path.join(directory_budyko, 'bc{0}_{1}months_{2}_lu{3}.png'.format(date.year, max_moving_avg_length, method, str(lu_dependent))))
-            plt.close(fig)
-            
-    etblue_fhs, etblue_dates, etblue_years, etblue_months, etblue_days = becgis.SortFiles(directory_etblue, [-10,-6], month_position = [-6,-4])
-    etgreen_fhs, etgreen_dates, etgreen_years, etgreen_months, etgreen_days = becgis.SortFiles(directory_etgreen,  [-10,-6], month_position = [-6,-4]) 
-    
-    if plot_graph:
-        fig = plt.figure(figsize = (10,10))
-        plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-        ax = fig.add_subplot(111)
-        ax.plot(dts, et, color = 'k')
-        ax.patch.set_visible(False)
-        ax.set_title('Average ET and ETblue and ETgreen fractions')
-        ax.set_ylabel('ET [mm/month]')
-        ax.patch.set_visible(True)
-        ax.fill_between(dts, et, color = '#a3db76', label = 'ETgreen')
-        ax.fill_between(dts, etblue, color = '#6bb8cc', label = 'ETblue')
-        ax.scatter(dts, et, color = 'k')
-        ax.legend(loc = 'upper left',fancybox=True, shadow=True)
-        fig.autofmt_xdate()
-        fig.suptitle('P_{0}, {1} months, lu_dependent: {2}, scale: {3}'.format(method, max_moving_avg_length, lu_dependent, scale))
-        ax.set_xlim([dts[0], dts[-1]])
-        ax.set_ylim([0, max(et) *1.2])
-        ax.set_xlabel('Time')
-        [j.set_zorder(10) for j in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'ETbluegreen_{0}months_{1}_lu{2}.png'.format(max_moving_avg_length, method, str(lu_dependent))))
-        plt.close(fig)
-        
-    if plot_graph:
-        fig = plt.figure(figsize = (10,10))
-        plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-        ax = fig.add_subplot(111)
-        ax.plot(dts, p, color = 'k')
-        ax.patch.set_visible(False)
-        ax.set_title('(Averaged) Precipitation')
-        ax.set_ylabel('P [mm/month]')
-        ax.patch.set_visible(True)
-        ax.fill_between(dts, p, color = '#6bb8cc', label = 'Actual P')
-        ax.scatter(dts, p, color = 'k')
-        ax.plot(dts, pavg, '--k', label = 'Average P')
-        ax.legend(loc = 'upper left',fancybox=True, shadow=True)
-        fig.autofmt_xdate()
-        fig.suptitle('P_{0}, {1} months, lu_dependent: {2}'.format(method, max_moving_avg_length, lu_dependent))
-        ax.set_xlim([dts[0], dts[-1]])
-        ax.set_ylim([0, max([max(pavg),max(p)]) *1.2])
-        ax.set_xlabel('Time')
-        [j.set_zorder(10) for j in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'Paveraged_{0}months_{1}_lu{2}.png'.format(max_moving_avg_length, method, str(lu_dependent))))
-        plt.close(fig)
-        
-    return etblue_fhs, etblue_dates, etgreen_fhs, etgreen_dates  
-        
-def splitET_BlueGreen_old(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dates, lu_fh, output_dir, moving_avg_length = 1, green_blue_categories = None, plot_graph = True):
-    """
-    Splits georeferenced evapotranspiration rastermaps into blue and green evapotranspiration maps.
-    
-    Parameters
-    ----------
-    et_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced evapotranspiration rastermaps.
-    et_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in et_fhs. Length should be equal
-        to et_fhs.
-    etref_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced reference evapotranspiration rastermaps.
-    etref_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etref_fhs. Length should be equal
-        to etref_fhs.
-    p_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced precipitation rastermaps.
-    p_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in p_fhs. Length should be equal
-        to p_fhs.
-    lu_fh : str
-        Filehandle pointing to a landusemap.
-    output_dir : str
-        String pointing to a folder to store output
-    moving_average_length : int or dict, optional
-        Length indicates how long the trailing average for reference evapotranspiration and
-        precipitation is. For each pixel, the average precipitation is compared to the
-        current precipitation, when the average is larger than the current, the average values are
-        used. Otherwise the current reference evapotranspiration and precipitation are used. In case a dictionary is
-        provided, individual lengths can be selected per landuse category. The landuse categories are defined in
-        green_blue_categories.
-        Default is 1.
-    green_blue_categories : dict
-        Dictionary indicating which landuseclasses belong to which category.
-    plot_graph : boolean, optional
-        Create a graph of the ETblue and ETgreen timeseries when True. Default is True.
-    full_averaging : boolean, optional
-        Use the averaged values to determine ETblue and ETgreen for all pixels. The comparison
-        between current P and average P is omitted. Default is False.
-        
-    Returns
-    -------
-    etblue_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced blue-evapotranspiration rastermaps.
-    etblue_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etblue_fhs. Length is equal
-        to et_fhs.
-    etgreen_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced green-evapotranspiration rastermaps.
-    etgreen_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etgreen_fhs. Length is equal
-        to etgreen_fhs.
-    """
-    print 'WARNING: You are using a old version of Split_ETgreenblue, this version will be deleted'
-    month_labels = {1:'01',2:'02',3:'03',4:'04',5:'05',6:'06',7:'07',8:'08',9:'09',10:'10',11:'11',12:'12'}
-    
-    becgis.AssertProjResNDV([et_fhs, etref_fhs, p_fhs])
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(et_fhs[0])
-    
-    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
-     
-    common_dates = becgis.CommonDates([et_dates, etref_dates, p_dates])
-    
-    if type(moving_avg_length) is dict:
-        max_moving_avg_length = np.max(moving_avg_length.values())
-        becgis.plot_category_areas(lu_fh, green_blue_categories, os.path.join(output_dir, 'landuse_area.png'), area_treshold = 0.01)
-    else:
-        max_moving_avg_length = moving_avg_length
-    
-    if max_moving_avg_length > 1:
-        becgis.AssertMissingDates(common_dates, timescale = 'months')
-    
-    directory_etgreen = os.path.join(output_dir, "ETgreen")
-    if not os.path.exists(directory_etgreen):
-        os.makedirs(directory_etgreen)
-    
-    directory_etblue = os.path.join(output_dir, "ETblue")
-    if not os.path.exists(directory_etblue):
-        os.makedirs(directory_etblue)
-        
-    print "Starting calculation of Blue and Green ET for {0} months between {1} and {2}.".format(len(common_dates[(max_moving_avg_length - 1):]), common_dates[(max_moving_avg_length - 1):][0], common_dates[(max_moving_avg_length - 1):][-1])
-    
-    if plot_graph:
-        etblue = np.array([])
-        etgreen = np.array([])
-        et = np.array([])
-    
-    for date in common_dates[(max_moving_avg_length - 1):]:
-        
-        P = becgis.OpenAsArray(p_fhs[p_dates == date][0], nan_values = True)
-        ET  = becgis.OpenAsArray(et_fhs[et_dates == date][0], nan_values = True)
-        ETREF = becgis.OpenAsArray(etref_fhs[etref_dates == date][0], nan_values = True)
-        
-        if type(moving_avg_length) is dict:
-            Pavg = becgis.MaskedMovingAverage(date, p_fhs, p_dates, lu_fh, moving_avg_length, green_blue_categories)
-            ETREFavg = becgis.MaskedMovingAverage(date, etref_fhs, etref_dates, lu_fh, moving_avg_length, green_blue_categories)     
-        else:
-            Pavg = becgis.MovingAverage(date, p_fhs, p_dates, moving_avg_length = moving_avg_length)
-            ETREFavg = becgis.MovingAverage(date, etref_fhs, etref_dates, moving_avg_length = moving_avg_length)
-        
-        mask = np.any([np.isnan(LULC), np.isnan(ET), np.isnan(ETREF), np.isnan(P), np.isnan(Pavg), np.isnan(ETREFavg)], axis=0)
-        ETREF[mask] = ETREFavg[mask] = ET[mask] = P[mask] = Pavg[mask] = np.nan
-        
-        phi = np.where(np.greater_equal(P, Pavg), ETREF/P, ETREFavg/Pavg)
-        
-        ## Calculate Bydyko-index
-        budyko = np.sqrt(phi*np.tanh(1/phi)*(1-np.exp(-phi)))
-        
-        ## Calculate green ET
-        ETgreen = np.where(np.greater_equal(P, Pavg), np.minimum(1.1*budyko*P,ET), np.minimum(1.1*budyko*Pavg,ET))
-        
-        ## Calculate blue ET
-        ETblue = ET - ETgreen
-        
-        ## Save ETgreen-map
-        output_fh = os.path.join(directory_etgreen, 'ETgreen_{0}_{1}.tif'.format(date.year,month_labels[date.month]))
-        becgis.CreateGeoTiff(output_fh, ETgreen, driver, NDV, xsize, ysize, GeoT, Projection)
-            
-        ## Save ETblue-map
-        output_fh = os.path.join(directory_etblue, 'ETblue_{0}_{1}.tif'.format(date.year,month_labels[date.month]))
-        becgis.CreateGeoTiff(output_fh, ETblue, driver, NDV, xsize, ysize, GeoT, Projection)
-        
-        if plot_graph:
-            etblue = np.append(etblue, np.nanmean(ETblue))
-            etgreen = np.append(etgreen, np.nanmean(ETgreen))
-            et = np.append(et, np.nanmean(ET))
-        
-        if plot_graph:
-            
-            plt.figure(figsize = (10,10))
-            plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-            
-            maxim = np.nanmax(phi)
-            
-            x = np.arange(0,maxim*1.2,0.1)
-            y = np.sqrt(x*np.tanh(1/x)*(1-np.exp(-x)))
-            
-            frac_ETa = np.where(np.greater_equal(P, Pavg), ET/P, ET/Pavg)    
-            
-            plt.plot(x,y, label = 'Budyko Curve', zorder = 10)
-            plt.plot(x,x, label = 'Energy Limit', zorder = 10)
-            plt.plot(x,np.ones_like(x), label = 'Water Limit', zorder =10)
-
-            plt.title('Budyko Curve, {0}'.format(date))
-            #ax.scatter(phi[np.greater_equal(P, Pavg)], frac_ETa[np.greater_equal(P, Pavg)], c=P[np.greater_equal(P, Pavg)],   marker = 'x', alpha = 0.5, label = 'P $\geq$ P_avg')
-            #ax.scatter(phi[~np.greater_equal(P, Pavg)], frac_ETa[~np.greater_equal(P, Pavg)], c=P[~np.greater_equal(P, Pavg)], marker = '.', alpha = 1.0, label = 'P $<$ P_avg')
-            
-            plt.scatter(phi, frac_ETa, c=P, marker = '.', alpha = 1.0, lw=0.0, cmap='viridis')
-            plt.colorbar(label = 'P [mm/month]' )
-            ax = plt.gca()
-            
-            ax.set_xlim([0,np.nanmax(phi)*1.1])
-            ax.set_ylim([0,max(1.1,np.nanmax(frac_ETa)*1.1)])
-            ax.legend(loc = 'upper left',fancybox=True, shadow=True)
-            ax.set_xlabel(r'ET0/P or ET0_avg/P_avg')
-            ax.set_ylabel(r'ETA/P or ETA/P_avg')
-            
-            directory_budyko = os.path.join(output_dir, "budyko_curves")
-            if not os.path.exists(directory_budyko):
-                os.makedirs(directory_budyko)
-            
-            plt.savefig(os.path.join(directory_budyko, 'bc_{0}{1}.png'.format(date.year, str(date.month).zfill(2))))
-    
-    etblue_fhs, etblue_dates, etblue_years, etblue_months, etblue_days = becgis.SortFiles(directory_etblue, [-11,-7], month_position = [-6,-4])
-    etgreen_fhs, etgreen_dates, etgreen_years, etgreen_months, etgreen_days = becgis.SortFiles(directory_etgreen, [-11,-7], month_position = [-6,-4])   
-    
-    if plot_graph:
-        fig = plt.figure(figsize = (10,10))
-        plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-        ax = fig.add_subplot(111)
-        ax.plot(common_dates[(max_moving_avg_length - 1):], et, color = 'k')
-        ax.patch.set_visible(False)
-        ax.set_title('Average ET and ETblue and ETgreen fractions')
-        ax.set_ylabel('ET [mm/month]')
-        ax.patch.set_visible(True)
-        ax.fill_between(common_dates[(max_moving_avg_length - 1):], et, color = '#a3db76', label = 'ETgreen')
-        ax.fill_between(common_dates[(max_moving_avg_length - 1):], etblue, color = '#6bb8cc', label = 'ETblue')
-        ax.scatter(common_dates[(max_moving_avg_length - 1):], et, color = 'k')
-        ax.legend(loc = 'upper left',fancybox=True, shadow=True)
-        fig.autofmt_xdate()
-        ax.set_xlim([common_dates[(max_moving_avg_length - 1):][0], common_dates[(max_moving_avg_length - 1):][-1]])
-        ax.set_ylim([0, max(et) *1.2])
-        ax.set_xlabel('Time')
-        [i.set_zorder(10) for i in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'ETfractions_bluegreen_int.png'))
-        
-
-
-                
-        
-        
-    
-    return etblue_fhs, etblue_dates, etgreen_fhs, etgreen_dates           
     
 def calc_Y_WP_year(csv_fh, output_dir, croptype):
     """
@@ -1083,7 +617,7 @@ def calc_Y_WP_season(startdate, enddate, lu_fh, lu_class, croptype, etgreen_fhs,
         
     return Yield, Yield_pr, Yield_irr, Wp, Wp_blue, Wp_green, Wc, Wc_blue, Wc_green
 
-def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filetype = 'pdf'):
+def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filetype = 'png'):
     """
     Plot yields and water productivities per season or per year.
     
@@ -1098,7 +632,7 @@ def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filety
     catchment_name : str, optional
         String used to format the graphs.
     filetype : str, optional
-        filetype, default is pdf, can also choose 'jpg', 'png'.    
+        filetype, default is pdf, can also choose, 'png'.    
     """
 
     if not os.path.exists(output_dir):
@@ -1144,3 +678,1498 @@ def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filety
     fig.autofmt_xdate()
     [r.set_zorder(10) for r in ax.spines.itervalues()]
     plt.savefig(os.path.join(output_dir,'{0}_wps.{1}'.format(croptype,filetype)))    
+
+import pandas as pd
+import xml.etree.ElementTree as ET
+import subprocess
+
+def create_sheet3_png(basin, period, units, data, output, template=False):
+
+    # Read table
+
+    df1 = pd.read_csv(data[0], sep=';')
+    df2 = pd.read_csv(data[1], sep=';')
+
+    # Data frames
+
+    df1c = df1.loc[df1.USE == "CROP"]
+    df1n = df1.loc[df1.USE == "NON-CROP"]
+
+    df2c = df2.loc[df2.USE == "CROP"]
+    df2n = df2.loc[df2.USE == "NON-CROP"]
+
+    # Read csv file part 1
+    crop_r01c01 = float(df1c.loc[(df1c.TYPE == "Cereals") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c01 = float(df1c.loc[(df1c.TYPE == "Cereals") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c01 = float(df1c.loc[(df1c.TYPE == "Cereals") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c01 = crop_r02c01 + crop_r03c01
+
+    crop_r01c02 = float(df1c.loc[(df1c.SUBTYPE == "Root/tuber crops") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c02 = float(df1c.loc[(df1c.SUBTYPE == "Root/tuber crops") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c02 = float(df1c.loc[(df1c.SUBTYPE == "Root/tuber crops") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c02 = crop_r02c02 + crop_r03c02
+
+    crop_r01c03 = float(df1c.loc[(df1c.SUBTYPE == "Leguminous crops") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c03 = float(df1c.loc[(df1c.SUBTYPE == "Leguminous crops") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c03 = float(df1c.loc[(df1c.SUBTYPE == "Leguminous crops") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c03 = crop_r02c03 + crop_r03c03
+
+    crop_r01c04 = float(df1c.loc[(df1c.SUBTYPE == "Sugar crops") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c04 = float(df1c.loc[(df1c.SUBTYPE == "Sugar crops") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c04 = float(df1c.loc[(df1c.SUBTYPE == "Sugar crops") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c04 = crop_r02c04 + crop_r03c04
+
+    crop_r01c05 = float(df1c.loc[(df1c.TYPE == "Non-cereals") &
+                        (df1c.SUBCLASS == "ET") &
+                        (df1c.SUBTYPE == "Merged")].WATER_CONSUMPTION)
+    crop_r02c05 = float(df1c.loc[(df1c.TYPE == "Non-cereals") &
+                        (df1c.SUBCLASS == "ET rainfall") &
+                        (df1c.SUBTYPE == "Merged")].WATER_CONSUMPTION)
+    crop_r03c05 = float(df1c.loc[(df1c.TYPE == "Non-cereals") &
+                        (df1c.SUBCLASS == "Incremental ET") &
+                        (df1c.SUBTYPE == "Merged")].WATER_CONSUMPTION)
+    crop_r04c05 = crop_r02c05 + crop_r03c05
+
+    crop_r01c06 = float(df1c.loc[(df1c.SUBTYPE == "Vegetables & melons") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c06 = float(df1c.loc[(df1c.SUBTYPE == "Vegetables & melons") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c06 = float(df1c.loc[(df1c.SUBTYPE == "Vegetables & melons") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c06 = crop_r02c06 + crop_r03c06
+
+    crop_r01c07 = float(df1c.loc[(df1c.SUBTYPE == "Fruits & nuts") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c07 = float(df1c.loc[(df1c.SUBTYPE == "Fruits & nuts") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c07 = float(df1c.loc[(df1c.SUBTYPE == "Fruits & nuts") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c07 = crop_r02c07 + crop_r03c07
+
+    crop_r01c08 = float(df1c.loc[(df1c.TYPE == "Fruit & vegetables") &
+                        (df1c.SUBCLASS == "ET") &
+                        (df1c.SUBTYPE == "Merged")].WATER_CONSUMPTION)
+    crop_r02c08 = float(df1c.loc[(df1c.TYPE == "Fruit & vegetables") &
+                        (df1c.SUBCLASS == "ET rainfall") &
+                        (df1c.SUBTYPE == "Merged")].WATER_CONSUMPTION)
+    crop_r03c08 = float(df1c.loc[(df1c.TYPE == "Fruit & vegetables") &
+                        (df1c.SUBCLASS == "Incremental ET") &
+                        (df1c.SUBTYPE == "Merged")].WATER_CONSUMPTION)
+    crop_r04c08 = crop_r02c08 + crop_r03c08
+
+    crop_r01c09 = float(df1c.loc[(df1c.TYPE == "Oilseeds") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c09 = float(df1c.loc[(df1c.TYPE == "Oilseeds") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c09 = float(df1c.loc[(df1c.TYPE == "Oilseeds") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c09 = crop_r02c09 + crop_r03c09
+
+    crop_r01c10 = float(df1c.loc[(df1c.TYPE == "Feed crops") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c10 = float(df1c.loc[(df1c.TYPE == "Feed crops") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c10 = float(df1c.loc[(df1c.TYPE == "Feed crops") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c10 = crop_r02c10 + crop_r03c10
+
+    crop_r01c11 = float(df1c.loc[(df1c.TYPE == "Beverage crops") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c11 = float(df1c.loc[(df1c.TYPE == "Beverage crops") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c11 = float(df1c.loc[(df1c.TYPE == "Beverage crops") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c11 = crop_r02c11 + crop_r03c11
+
+    crop_r01c12 = float(df1c.loc[(df1c.TYPE == "Other crops") &
+                        (df1c.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    crop_r02c12 = float(df1c.loc[(df1c.TYPE == "Other crops") &
+                        (df1c.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    crop_r03c12 = float(df1c.loc[(df1c.TYPE == "Other crops") &
+                        (df1c.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    crop_r04c12 = crop_r02c12 + crop_r03c12
+
+    noncrop_r01c01 = float(df1n.loc[(df1n.TYPE == "Fish (Aquaculture)") &
+                           (df1n.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    noncrop_r02c01 = float(df1n.loc[(df1n.TYPE == "Fish (Aquaculture)") &
+                           (df1n.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    noncrop_r03c01 = float(df1n.loc[(df1n.TYPE == "Fish (Aquaculture)") &
+                           (df1n.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    noncrop_r04c01 = noncrop_r02c01 + noncrop_r03c01
+
+    noncrop_r01c02 = float(df1n.loc[(df1n.TYPE == "Timber") &
+                           (df1n.SUBCLASS == "ET")].WATER_CONSUMPTION)
+    noncrop_r02c02 = float(df1n.loc[(df1n.TYPE == "Timber") &
+                           (df1n.SUBCLASS == "ET rainfall")].WATER_CONSUMPTION)
+    noncrop_r03c02 = float(df1n.loc[(df1n.TYPE == "Timber") &
+                           (df1n.SUBCLASS == "Incremental ET")].WATER_CONSUMPTION)
+    noncrop_r04c02 = noncrop_r02c02 + noncrop_r03c02
+
+    crop_r01 = pd.np.nansum([crop_r01c01, crop_r01c02, crop_r01c03,
+                             crop_r01c04, crop_r01c05, crop_r01c06,
+                             crop_r01c07, crop_r01c08, crop_r01c09,
+                             crop_r01c10, crop_r01c11, crop_r01c12])
+
+    crop_r02 = pd.np.nansum([crop_r02c01, crop_r02c02, crop_r02c03,
+                             crop_r02c04, crop_r02c05, crop_r02c06,
+                             crop_r02c07, crop_r02c08, crop_r02c09,
+                             crop_r02c10, crop_r02c11, crop_r02c12])
+
+    crop_r03 = pd.np.nansum([crop_r03c01, crop_r03c02, crop_r03c03,
+                             crop_r03c04, crop_r03c05, crop_r03c06,
+                             crop_r03c07, crop_r03c08, crop_r03c09,
+                             crop_r03c10, crop_r03c11, crop_r03c12])
+
+    crop_r04 = crop_r02 + crop_r03
+
+    noncrop_r01 = pd.np.nansum([noncrop_r01c01, noncrop_r01c02])
+
+    noncrop_r02 = pd.np.nansum([noncrop_r02c01, noncrop_r02c02])
+
+    noncrop_r03 = pd.np.nansum([noncrop_r03c01, noncrop_r03c02])
+
+    noncrop_r04 = noncrop_r02 + noncrop_r03
+
+    ag_water_cons = crop_r01 + crop_r04 + noncrop_r01 + noncrop_r04
+
+    # Read csv file part 2
+    # Land productivity
+    lp_r01c01 = float(df2c.loc[(df2c.TYPE == "Cereals") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c01 = float(df2c.loc[(df2c.TYPE == "Cereals") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c01 = float(df2c.loc[(df2c.TYPE == "Cereals") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c01 = float(df2c.loc[(df2c.TYPE == "Cereals") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c02 = float(df2c.loc[(df2c.SUBTYPE == "Root/tuber crops") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c02 = float(df2c.loc[(df2c.SUBTYPE == "Root/tuber crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c02 = float(df2c.loc[(df2c.SUBTYPE == "Root/tuber crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c02 = float(df2c.loc[(df2c.SUBTYPE == "Root/tuber crops") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c03 = float(df2c.loc[(df2c.SUBTYPE == "Leguminous crops") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c03 = float(df2c.loc[(df2c.SUBTYPE == "Leguminous crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c03 = float(df2c.loc[(df2c.SUBTYPE == "Leguminous crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c03 = float(df2c.loc[(df2c.SUBTYPE == "Leguminous crops") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c04 = float(df2c.loc[(df2c.SUBTYPE == "Sugar crops") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c04 = float(df2c.loc[(df2c.SUBTYPE == "Sugar crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c04 = float(df2c.loc[(df2c.SUBTYPE == "Sugar crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c04 = float(df2c.loc[(df2c.SUBTYPE == "Sugar crops") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c05 = float(df2c.loc[(df2c.TYPE == "Non-cereals") &
+                      (df2c.SUBCLASS == "Yield") &
+                      (df2c.SUBTYPE == "Merged")].LAND_PRODUCTIVITY)
+    lp_r02c05 = float(df2c.loc[(df2c.TYPE == "Non-cereals") &
+                      (df2c.SUBCLASS == "Yield rainfall") &
+                      (df2c.SUBTYPE == "Merged")].LAND_PRODUCTIVITY)
+    lp_r03c05 = float(df2c.loc[(df2c.TYPE == "Non-cereals") &
+                      (df2c.SUBCLASS == "Incremental yield") &
+                      (df2c.SUBTYPE == "Merged")].LAND_PRODUCTIVITY)
+    lp_r04c05 = float(df2c.loc[(df2c.TYPE == "Non-cereals") &
+                      (df2c.SUBCLASS == "Total yield") &
+                      (df2c.SUBTYPE == "Merged")].LAND_PRODUCTIVITY)
+
+    lp_r01c06 = float(df2c.loc[(df2c.SUBTYPE == "Vegetables & melons") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c06 = float(df2c.loc[(df2c.SUBTYPE == "Vegetables & melons") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c06 = float(df2c.loc[(df2c.SUBTYPE == "Vegetables & melons") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c06 = float(df2c.loc[(df2c.SUBTYPE == "Vegetables & melons") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c07 = float(df2c.loc[(df2c.SUBTYPE == "Fruits & nuts") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c07 = float(df2c.loc[(df2c.SUBTYPE == "Fruits & nuts") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c07 = float(df2c.loc[(df2c.SUBTYPE == "Fruits & nuts") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c07 = float(df2c.loc[(df2c.SUBTYPE == "Fruits & nuts") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c08 = float(df2c.loc[(df2c.TYPE == "Fruit & vegetables") &
+                      (df2c.SUBCLASS == "Yield") &
+                      (df2c.SUBTYPE == "Merged")].LAND_PRODUCTIVITY)
+    lp_r02c08 = float(df2c.loc[(df2c.TYPE == "Fruit & vegetables") &
+                      (df2c.SUBCLASS == "Yield rainfall") &
+                      (df2c.SUBTYPE == "Merged")].LAND_PRODUCTIVITY)
+    lp_r03c08 = float(df2c.loc[(df2c.TYPE == "Fruit & vegetables") &
+                      (df2c.SUBCLASS == "Incremental yield") &
+                      (df2c.SUBTYPE == "Merged")].LAND_PRODUCTIVITY)
+    lp_r04c08 = float(df2c.loc[(df2c.TYPE == "Fruit & vegetables") &
+                      (df2c.SUBCLASS == "Total yield") &
+                      (df2c.SUBTYPE == "Merged")].LAND_PRODUCTIVITY)
+
+    lp_r01c09 = float(df2c.loc[(df2c.TYPE == "Oilseeds") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c09 = float(df2c.loc[(df2c.TYPE == "Oilseeds") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c09 = float(df2c.loc[(df2c.TYPE == "Oilseeds") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c09 = float(df2c.loc[(df2c.TYPE == "Oilseeds") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c10 = float(df2c.loc[(df2c.TYPE == "Feed crops") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c10 = float(df2c.loc[(df2c.TYPE == "Feed crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c10 = float(df2c.loc[(df2c.TYPE == "Feed crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c10 = float(df2c.loc[(df2c.TYPE == "Feed crops") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c11 = float(df2c.loc[(df2c.TYPE == "Beverage crops") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c11 = float(df2c.loc[(df2c.TYPE == "Beverage crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c11 = float(df2c.loc[(df2c.TYPE == "Beverage crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c11 = float(df2c.loc[(df2c.TYPE == "Beverage crops") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r01c12 = float(df2c.loc[(df2c.TYPE == "Other crops") &
+                      (df2c.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r02c12 = float(df2c.loc[(df2c.TYPE == "Other crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r03c12 = float(df2c.loc[(df2c.TYPE == "Other crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r04c12 = float(df2c.loc[(df2c.TYPE == "Other crops") &
+                      (df2c.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r05c01 = float(df2n.loc[(df2n.SUBTYPE == "Meat") &
+                      (df2n.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r06c01 = float(df2n.loc[(df2n.SUBTYPE == "Meat") &
+                      (df2n.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r07c01 = float(df2n.loc[(df2n.SUBTYPE == "Meat") &
+                      (df2n.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r08c01 = float(df2n.loc[(df2n.SUBTYPE == "Meat") &
+                      (df2n.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r05c02 = float(df2n.loc[(df2n.SUBTYPE == "Milk") &
+                      (df2n.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r06c02 = float(df2n.loc[(df2n.SUBTYPE == "Milk") &
+                      (df2n.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r07c02 = float(df2n.loc[(df2n.SUBTYPE == "Milk") &
+                      (df2n.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r08c02 = float(df2n.loc[(df2n.SUBTYPE == "Milk") &
+                      (df2n.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r05c03 = float(df2n.loc[(df2n.TYPE == "Fish (Aquaculture)") &
+                      (df2n.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r06c03 = float(df2n.loc[(df2n.TYPE == "Fish (Aquaculture)") &
+                      (df2n.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r07c03 = float(df2n.loc[(df2n.TYPE == "Fish (Aquaculture)") &
+                      (df2n.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r08c03 = float(df2n.loc[(df2n.TYPE == "Fish (Aquaculture)") &
+                      (df2n.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    lp_r05c04 = float(df2n.loc[(df2n.TYPE == "Timber") &
+                      (df2n.SUBCLASS == "Yield")].LAND_PRODUCTIVITY)
+    lp_r06c04 = float(df2n.loc[(df2n.TYPE == "Timber") &
+                      (df2n.SUBCLASS == "Yield rainfall")].LAND_PRODUCTIVITY)
+    lp_r07c04 = float(df2n.loc[(df2n.TYPE == "Timber") &
+                      (df2n.SUBCLASS == "Incremental yield")].LAND_PRODUCTIVITY)
+    lp_r08c04 = float(df2n.loc[(df2n.TYPE == "Timber") &
+                      (df2n.SUBCLASS == "Total yield")].LAND_PRODUCTIVITY)
+
+    # Water productivity
+    wp_r01c01 = float(df2c.loc[(df2c.TYPE == "Cereals") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c01 = float(df2c.loc[(df2c.TYPE == "Cereals") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c01 = float(df2c.loc[(df2c.TYPE == "Cereals") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c01 = float(df2c.loc[(df2c.TYPE == "Cereals") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r01c02 = float(df2c.loc[(df2c.SUBTYPE == "Root/tuber crops") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c02 = float(df2c.loc[(df2c.SUBTYPE == "Root/tuber crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c02 = float(df2c.loc[(df2c.SUBTYPE == "Root/tuber crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c02 = float(df2c.loc[(df2c.SUBTYPE == "Root/tuber crops") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r01c03 = float(df2c.loc[(df2c.SUBTYPE == "Leguminous crops") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c03 = float(df2c.loc[(df2c.SUBTYPE == "Leguminous crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c03 = float(df2c.loc[(df2c.SUBTYPE == "Leguminous crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c03 = float(df2c.loc[(df2c.SUBTYPE == "Leguminous crops") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+    
+    wp_r01c04 = float(df2c.loc[(df2c.SUBTYPE == "Sugar crops") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c04 = float(df2c.loc[(df2c.SUBTYPE == "Sugar crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c04 = float(df2c.loc[(df2c.SUBTYPE == "Sugar crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c04 = float(df2c.loc[(df2c.SUBTYPE == "Sugar crops") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r01c05 = float(df2c.loc[(df2c.TYPE == "Non-cereals") &
+                      (df2c.SUBCLASS == "Yield") &
+                      (df2c.SUBTYPE == "Merged")].WATER_PRODUCTIVITY)
+    wp_r02c05 = float(df2c.loc[(df2c.TYPE == "Non-cereals") &
+                      (df2c.SUBCLASS == "Yield rainfall") &
+                      (df2c.SUBTYPE == "Merged")].WATER_PRODUCTIVITY)
+    wp_r03c05 = float(df2c.loc[(df2c.TYPE == "Non-cereals") &
+                      (df2c.SUBCLASS == "Incremental yield") &
+                      (df2c.SUBTYPE == "Merged")].WATER_PRODUCTIVITY)
+    wp_r04c05 = float(df2c.loc[(df2c.TYPE == "Non-cereals") &
+                      (df2c.SUBCLASS == "Total yield") &
+                      (df2c.SUBTYPE == "Merged")].WATER_PRODUCTIVITY)
+
+    wp_r01c06 = float(df2c.loc[(df2c.SUBTYPE == "Vegetables & melons") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c06 = float(df2c.loc[(df2c.SUBTYPE == "Vegetables & melons") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c06 = float(df2c.loc[(df2c.SUBTYPE == "Vegetables & melons") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c06 = float(df2c.loc[(df2c.SUBTYPE == "Vegetables & melons") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r01c07 = float(df2c.loc[(df2c.SUBTYPE == "Fruits & nuts") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c07 = float(df2c.loc[(df2c.SUBTYPE == "Fruits & nuts") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c07 = float(df2c.loc[(df2c.SUBTYPE == "Fruits & nuts") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c07 = float(df2c.loc[(df2c.SUBTYPE == "Fruits & nuts") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r01c08 = float(df2c.loc[(df2c.TYPE == "Fruit & vegetables") &
+                      (df2c.SUBCLASS == "Yield") &
+                      (df2c.SUBTYPE == "Merged")].WATER_PRODUCTIVITY)
+    wp_r02c08 = float(df2c.loc[(df2c.TYPE == "Fruit & vegetables") &
+                      (df2c.SUBCLASS == "Yield rainfall") &
+                      (df2c.SUBTYPE == "Merged")].WATER_PRODUCTIVITY)
+    wp_r03c08 = float(df2c.loc[(df2c.TYPE == "Fruit & vegetables") &
+                      (df2c.SUBCLASS == "Incremental yield") &
+                      (df2c.SUBTYPE == "Merged")].WATER_PRODUCTIVITY)
+    wp_r04c08 = float(df2c.loc[(df2c.TYPE == "Fruit & vegetables") &
+                      (df2c.SUBCLASS == "Total yield") &
+                      (df2c.SUBTYPE == "Merged")].WATER_PRODUCTIVITY)
+
+    wp_r01c09 = float(df2c.loc[(df2c.TYPE == "Oilseeds") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c09 = float(df2c.loc[(df2c.TYPE == "Oilseeds") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c09 = float(df2c.loc[(df2c.TYPE == "Oilseeds") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c09 = float(df2c.loc[(df2c.TYPE == "Oilseeds") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r01c10 = float(df2c.loc[(df2c.TYPE == "Feed crops") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c10 = float(df2c.loc[(df2c.TYPE == "Feed crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c10 = float(df2c.loc[(df2c.TYPE == "Feed crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c10 = float(df2c.loc[(df2c.TYPE == "Feed crops") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r01c11 = float(df2c.loc[(df2c.TYPE == "Beverage crops") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c11 = float(df2c.loc[(df2c.TYPE == "Beverage crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c11 = float(df2c.loc[(df2c.TYPE == "Beverage crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c11 = float(df2c.loc[(df2c.TYPE == "Beverage crops") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r01c12 = float(df2c.loc[(df2c.TYPE == "Other crops") &
+                      (df2c.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r02c12 = float(df2c.loc[(df2c.TYPE == "Other crops") &
+                      (df2c.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r03c12 = float(df2c.loc[(df2c.TYPE == "Other crops") &
+                      (df2c.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r04c12 = float(df2c.loc[(df2c.TYPE == "Other crops") &
+                      (df2c.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r05c01 = float(df2n.loc[(df2n.SUBTYPE == "Meat") &
+                      (df2n.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r06c01 = float(df2n.loc[(df2n.SUBTYPE == "Meat") &
+                      (df2n.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r07c01 = float(df2n.loc[(df2n.SUBTYPE == "Meat") &
+                      (df2n.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r08c01 = float(df2n.loc[(df2n.SUBTYPE == "Meat") &
+                      (df2n.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r05c02 = float(df2n.loc[(df2n.SUBTYPE == "Milk") &
+                      (df2n.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r06c02 = float(df2n.loc[(df2n.SUBTYPE == "Milk") &
+                      (df2n.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r07c02 = float(df2n.loc[(df2n.SUBTYPE == "Milk") &
+                      (df2n.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r08c02 = float(df2n.loc[(df2n.SUBTYPE == "Milk") &
+                      (df2n.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r05c03 = float(df2n.loc[(df2n.TYPE == "Fish (Aquaculture)") &
+                      (df2n.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r06c03 = float(df2n.loc[(df2n.TYPE == "Fish (Aquaculture)") &
+                      (df2n.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r07c03 = float(df2n.loc[(df2n.TYPE == "Fish (Aquaculture)") &
+                      (df2n.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r08c03 = float(df2n.loc[(df2n.TYPE == "Fish (Aquaculture)") &
+                      (df2n.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    wp_r05c04 = float(df2n.loc[(df2n.TYPE == "Timber") &
+                      (df2n.SUBCLASS == "Yield")].WATER_PRODUCTIVITY)
+    wp_r06c04 = float(df2n.loc[(df2n.TYPE == "Timber") &
+                      (df2n.SUBCLASS == "Yield rainfall")].WATER_PRODUCTIVITY)
+    wp_r07c04 = float(df2n.loc[(df2n.TYPE == "Timber") &
+                      (df2n.SUBCLASS == "Incremental yield")].WATER_PRODUCTIVITY)
+    wp_r08c04 = float(df2n.loc[(df2n.TYPE == "Timber") &
+                      (df2n.SUBCLASS == "Total yield")].WATER_PRODUCTIVITY)
+
+    # Calculations & modify svgs
+    if not template:
+        path = os.path.dirname(os.path.abspath(__file__))
+        svg_template_path_1 = os.path.join(path, 'svg', 'sheet_3_part1.svg')
+        svg_template_path_2 = os.path.join(path, 'svg', 'sheet_3_part2.svg')
+    else:
+        svg_template_path_1 = os.path.abspath(template[0])
+        svg_template_path_2 = os.path.abspath(template[1])
+
+    tree1 = ET.parse(svg_template_path_1)
+    tree2 = ET.parse(svg_template_path_2)
+    #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Titles
+
+    xml_txt_box = tree1.findall('''.//*[@id='basin']''')[0]
+    xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+
+    xml_txt_box = tree1.findall('''.//*[@id='period']''')[0]
+    xml_txt_box.getchildren()[0].text = 'Period: ' + period
+
+    xml_txt_box = tree1.findall('''.//*[@id='units']''')[0]
+    xml_txt_box.getchildren()[0].text = 'Part 1: Agricultural water consumption (' + units[0] + ')'
+
+    xml_txt_box = tree2.findall('''.//*[@id='basin2']''')[0]
+    xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+
+    xml_txt_box = tree2.findall('''.//*[@id='period2']''')[0]
+    xml_txt_box.getchildren()[0].text = 'Period: ' + period
+
+    xml_txt_box = tree2.findall('''.//*[@id='units2']''')[0]
+    xml_txt_box.getchildren()[0].text = 'Part 2: Land productivity (' + units[1] + ') and water productivity (' + units[2] + ')'
+
+    # Part 1
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c01']''')[0]
+    if not pd.isnull(crop_r01c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c02']''')[0]
+    if not pd.isnull(crop_r01c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c03']''')[0]
+    if not pd.isnull(crop_r01c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c04']''')[0]
+    if not pd.isnull(crop_r01c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c05']''')[0]
+    if not pd.isnull(crop_r01c05):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c06']''')[0]
+    if not pd.isnull(crop_r01c06):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c07']''')[0]
+    if not pd.isnull(crop_r01c07):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c08']''')[0]
+    if not pd.isnull(crop_r01c08):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c09']''')[0]
+    if not pd.isnull(crop_r01c09):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c10']''')[0]
+    if not pd.isnull(crop_r01c10):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c11']''')[0]
+    if not pd.isnull(crop_r01c11):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c12']''')[0]
+    if not pd.isnull(crop_r01c12):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r01']''')[0]
+    if not pd.isnull(crop_r01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c01']''')[0]
+    if not pd.isnull(crop_r02c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c02']''')[0]
+    if not pd.isnull(crop_r02c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c03']''')[0]
+    if not pd.isnull(crop_r02c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c04']''')[0]
+    if not pd.isnull(crop_r02c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c05']''')[0]
+    if not pd.isnull(crop_r02c05):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c06']''')[0]
+    if not pd.isnull(crop_r02c06):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c07']''')[0]
+    if not pd.isnull(crop_r02c07):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c08']''')[0]
+    if not pd.isnull(crop_r02c08):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c09']''')[0]
+    if not pd.isnull(crop_r02c09):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c10']''')[0]
+    if not pd.isnull(crop_r02c10):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c11']''')[0]
+    if not pd.isnull(crop_r02c11):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c12']''')[0]
+    if not pd.isnull(crop_r02c12):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r02']''')[0]
+    if not pd.isnull(crop_r02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c01']''')[0]
+    if not pd.isnull(crop_r03c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c02']''')[0]
+    if not pd.isnull(crop_r03c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c03']''')[0]
+    if not pd.isnull(crop_r03c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c04']''')[0]
+    if not pd.isnull(crop_r03c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c05']''')[0]
+    if not pd.isnull(crop_r03c05):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c06']''')[0]
+    if not pd.isnull(crop_r03c06):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c07']''')[0]
+    if not pd.isnull(crop_r03c07):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c08']''')[0]
+    if not pd.isnull(crop_r03c08):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c09']''')[0]
+    if not pd.isnull(crop_r03c09):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c10']''')[0]
+    if not pd.isnull(crop_r03c10):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c11']''')[0]
+    if not pd.isnull(crop_r03c11):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c12']''')[0]
+    if not pd.isnull(crop_r03c12):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r03']''')[0]
+    if not pd.isnull(crop_r03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c01']''')[0]
+    if not pd.isnull(crop_r04c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c02']''')[0]
+    if not pd.isnull(crop_r04c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c03']''')[0]
+    if not pd.isnull(crop_r04c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c04']''')[0]
+    if not pd.isnull(crop_r04c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c05']''')[0]
+    if not pd.isnull(crop_r04c05):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c06']''')[0]
+    if not pd.isnull(crop_r04c06):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c07']''')[0]
+    if not pd.isnull(crop_r04c07):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c08']''')[0]
+    if not pd.isnull(crop_r04c08):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c09']''')[0]
+    if not pd.isnull(crop_r04c09):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c10']''')[0]
+    if not pd.isnull(crop_r04c10):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c11']''')[0]
+    if not pd.isnull(crop_r04c11):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c12']''')[0]
+    if not pd.isnull(crop_r04c12):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='crop_r04']''')[0]
+    if not pd.isnull(crop_r04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r01c01']''')[0]
+    if not pd.isnull(noncrop_r01c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r01c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r01c02']''')[0]
+    if not pd.isnull(noncrop_r01c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r01c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r01']''')[0]
+    if not pd.isnull(noncrop_r01) and noncrop_r01 > 0.001:
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r02c01']''')[0]
+    if not pd.isnull(noncrop_r02c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r02c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r02c02']''')[0]
+    if not pd.isnull(noncrop_r02c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r02c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r02']''')[0]
+    if not pd.isnull(noncrop_r02) and noncrop_r02 > 0.001:
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r03c01']''')[0]
+    if not pd.isnull(noncrop_r03c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r03c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r03c02']''')[0]
+    if not pd.isnull(noncrop_r03c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r03c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r03']''')[0]
+    if not pd.isnull(noncrop_r03) and noncrop_r03 > 0.001:
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r04c01']''')[0]
+    if not pd.isnull(noncrop_r04c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r04c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r04c02']''')[0]
+    if not pd.isnull(noncrop_r04c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r04c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r04']''')[0]
+    if not pd.isnull(noncrop_r04) and noncrop_r04 > 0.001:
+        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+
+    # Part 2
+    xml_txt_box = tree1.findall('''.//*[@id='ag_water_cons']''')[0]
+    if not pd.isnull(ag_water_cons):
+        xml_txt_box.getchildren()[0].text = '%.2f' % ag_water_cons
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c01']''')[0]
+    if not pd.isnull(lp_r01c01):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c02']''')[0]
+    if not pd.isnull(lp_r01c02):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c03']''')[0]
+    if not pd.isnull(lp_r01c03):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c04']''')[0]
+    if not pd.isnull(lp_r01c04):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c05']''')[0]
+    if not pd.isnull(lp_r01c05):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c06']''')[0]
+    if not pd.isnull(lp_r01c06):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c07']''')[0]
+    if not pd.isnull(lp_r01c07):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c08']''')[0]
+    if not pd.isnull(lp_r01c08):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c09']''')[0]
+    if not pd.isnull(lp_r01c09):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c10']''')[0]
+    if not pd.isnull(lp_r01c10):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c11']''')[0]
+    if not pd.isnull(lp_r01c11):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c12']''')[0]
+    if not pd.isnull(lp_r01c12):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c01']''')[0]
+    if not pd.isnull(lp_r02c01):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c02']''')[0]
+    if not pd.isnull(lp_r02c02):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c03']''')[0]
+    if not pd.isnull(lp_r02c03):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c04']''')[0]
+    if not pd.isnull(lp_r02c04):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c05']''')[0]
+    if not pd.isnull(lp_r02c05):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c06']''')[0]
+    if not pd.isnull(lp_r02c06):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c07']''')[0]
+    if not pd.isnull(lp_r02c07):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c08']''')[0]
+    if not pd.isnull(lp_r02c08):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c09']''')[0]
+    if not pd.isnull(lp_r02c09):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c10']''')[0]
+    if not pd.isnull(lp_r02c10):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c11']''')[0]
+    if not pd.isnull(lp_r02c11):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c12']''')[0]
+    if not pd.isnull(lp_r02c12):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c01']''')[0]
+    if not pd.isnull(lp_r03c01):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c02']''')[0]
+    if not pd.isnull(lp_r03c02):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c03']''')[0]
+    if not pd.isnull(lp_r03c03):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c04']''')[0]
+    if not pd.isnull(lp_r03c04):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c05']''')[0]
+    if not pd.isnull(lp_r03c05):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c06']''')[0]
+    if not pd.isnull(lp_r03c06):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c07']''')[0]
+    if not pd.isnull(lp_r03c07):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c08']''')[0]
+    if not pd.isnull(lp_r03c08):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c09']''')[0]
+    if not pd.isnull(lp_r03c09):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c10']''')[0]
+    if not pd.isnull(lp_r03c10):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c11']''')[0]
+    if not pd.isnull(lp_r03c11):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c12']''')[0]
+    if not pd.isnull(lp_r03c12):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c01']''')[0]
+    if not pd.isnull(lp_r04c01):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c02']''')[0]
+    if not pd.isnull(lp_r04c02):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c03']''')[0]
+    if not pd.isnull(lp_r04c03):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c04']''')[0]
+    if not pd.isnull(lp_r04c04):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c05']''')[0]
+    if not pd.isnull(lp_r04c05):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c06']''')[0]
+    if not pd.isnull(lp_r04c06):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c07']''')[0]
+    if not pd.isnull(lp_r04c07):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c08']''')[0]
+    if not pd.isnull(lp_r04c08):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c09']''')[0]
+    if not pd.isnull(lp_r04c09):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c10']''')[0]
+    if not pd.isnull(lp_r04c10):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c11']''')[0]
+    if not pd.isnull(lp_r04c11):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c12']''')[0]
+    if not pd.isnull(lp_r04c12):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c01']''')[0]
+    if not pd.isnull(wp_r01c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c02']''')[0]
+    if not pd.isnull(wp_r01c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c03']''')[0]
+    if not pd.isnull(wp_r01c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c04']''')[0]
+    if not pd.isnull(wp_r01c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c05']''')[0]
+    if not pd.isnull(wp_r01c05):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c06']''')[0]
+    if not pd.isnull(wp_r01c06):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c07']''')[0]
+    if not pd.isnull(wp_r01c07):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c08']''')[0]
+    if not pd.isnull(wp_r01c08):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c09']''')[0]
+    if not pd.isnull(wp_r01c09):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c10']''')[0]
+    if not pd.isnull(wp_r01c10):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c11']''')[0]
+    if not pd.isnull(wp_r01c11):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c12']''')[0]
+    if not pd.isnull(wp_r01c12):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c01']''')[0]
+    if not pd.isnull(wp_r02c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c02']''')[0]
+    if not pd.isnull(wp_r02c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c03']''')[0]
+    if not pd.isnull(wp_r02c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c04']''')[0]
+    if not pd.isnull(wp_r02c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c05']''')[0]
+    if not pd.isnull(wp_r02c05):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c06']''')[0]
+    if not pd.isnull(wp_r02c06):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c07']''')[0]
+    if not pd.isnull(wp_r02c07):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c08']''')[0]
+    if not pd.isnull(wp_r02c08):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c09']''')[0]
+    if not pd.isnull(wp_r02c09):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c10']''')[0]
+    if not pd.isnull(wp_r02c10):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c11']''')[0]
+    if not pd.isnull(wp_r02c11):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c12']''')[0]
+    if not pd.isnull(wp_r02c12):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c01']''')[0]
+    if not pd.isnull(wp_r03c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c02']''')[0]
+    if not pd.isnull(wp_r03c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c03']''')[0]
+    if not pd.isnull(wp_r03c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c04']''')[0]
+    if not pd.isnull(wp_r03c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c05']''')[0]
+    if not pd.isnull(wp_r03c05):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c06']''')[0]
+    if not pd.isnull(wp_r03c06):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c07']''')[0]
+    if not pd.isnull(wp_r03c07):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c08']''')[0]
+    if not pd.isnull(wp_r03c08):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c09']''')[0]
+    if not pd.isnull(wp_r03c09):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c10']''')[0]
+    if not pd.isnull(wp_r03c10):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c11']''')[0]
+    if not pd.isnull(wp_r03c11):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c12']''')[0]
+    if not pd.isnull(wp_r03c12):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c01']''')[0]
+    if not pd.isnull(wp_r04c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c02']''')[0]
+    if not pd.isnull(wp_r04c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c03']''')[0]
+    if not pd.isnull(wp_r04c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c04']''')[0]
+    if not pd.isnull(wp_r04c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c05']''')[0]
+    if not pd.isnull(wp_r04c05):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c05
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c06']''')[0]
+    if not pd.isnull(wp_r04c06):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c06
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c07']''')[0]
+    if not pd.isnull(wp_r04c07):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c07
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c08']''')[0]
+    if not pd.isnull(wp_r04c08):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c08
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c09']''')[0]
+    if not pd.isnull(wp_r04c09):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c09
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c10']''')[0]
+    if not pd.isnull(wp_r04c10):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c10
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c11']''')[0]
+    if not pd.isnull(wp_r04c11):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c11
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c12']''')[0]
+    if not pd.isnull(wp_r04c12):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c12
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r05c01']''')[0]
+    if not pd.isnull(lp_r05c01):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r05c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r05c02']''')[0]
+    if not pd.isnull(lp_r05c02):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r05c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r05c03']''')[0]
+    if not pd.isnull(lp_r05c03):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r05c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r05c04']''')[0]
+    if not pd.isnull(lp_r05c04):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r05c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r06c01']''')[0]
+    if not pd.isnull(lp_r06c01):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r06c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r06c02']''')[0]
+    if not pd.isnull(lp_r06c02):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r06c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r06c03']''')[0]
+    if not pd.isnull(lp_r06c03):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r06c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r06c04']''')[0]
+    if not pd.isnull(lp_r06c04):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r06c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r07c01']''')[0]
+    if not pd.isnull(lp_r07c01):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r07c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r07c02']''')[0]
+    if not pd.isnull(lp_r07c02):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r07c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r07c03']''')[0]
+    if not pd.isnull(lp_r07c03):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r07c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r07c04']''')[0]
+    if not pd.isnull(lp_r07c04):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r07c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r08c01']''')[0]
+    if not pd.isnull(lp_r08c01):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r08c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r08c02']''')[0]
+    if not pd.isnull(lp_r08c02):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r08c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r08c03']''')[0]
+    if not pd.isnull(lp_r08c03):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r08c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='lp_r08c04']''')[0]
+    if not pd.isnull(lp_r08c04):
+        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r08c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r05c01']''')[0]
+    if not pd.isnull(wp_r05c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r05c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r05c02']''')[0]
+    if not pd.isnull(wp_r05c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r05c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r05c03']''')[0]
+    if not pd.isnull(wp_r05c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r05c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r05c04']''')[0]
+    if not pd.isnull(wp_r05c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r05c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r06c01']''')[0]
+    if not pd.isnull(wp_r06c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r06c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r06c02']''')[0]
+    if not pd.isnull(wp_r06c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r06c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r06c03']''')[0]
+    if not pd.isnull(wp_r06c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r06c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r06c04']''')[0]
+    if not pd.isnull(wp_r06c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r06c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r07c01']''')[0]
+    if not pd.isnull(wp_r07c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r07c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r07c02']''')[0]
+    if not pd.isnull(wp_r07c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r07c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r07c03']''')[0]
+    if not pd.isnull(wp_r07c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r07c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r07c04']''')[0]
+    if not pd.isnull(wp_r07c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r07c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r08c01']''')[0]
+    if not pd.isnull(wp_r08c01):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r08c01
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r08c02']''')[0]
+    if not pd.isnull(wp_r08c02):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r08c02
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r08c03']''')[0]
+    if not pd.isnull(wp_r08c03):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r08c03
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+    xml_txt_box = tree2.findall('''.//*[@id='wp_r08c04']''')[0]
+    if not pd.isnull(wp_r08c04):
+        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r08c04
+    else:
+        xml_txt_box.getchildren()[0].text = '-'
+
+    # svg to string
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+
+    # Get the paths based on the environment variable
+    #WA_env_paths = os.environ["WA_PATHS"].split(';')
+    #Inkscape_env_path = WA_env_paths[1]
+    Path_Inkscape = get_path('inkscape')
+
+    # Export svg to png
+    tempout_path = output[0].replace('.png', '_temporary.svg')
+    tree1.write(tempout_path)
+    subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output[0], '-d 300'])
+    os.remove(tempout_path)
+
+        # Export svg to png
+    tempout_path = output[1].replace('.png', '_temporary.svg')
+    tree2.write(tempout_path)
+    subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output[1], '-d 300'])
+    os.remove(tempout_path)
+
+    return output

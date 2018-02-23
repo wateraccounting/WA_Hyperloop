@@ -4,6 +4,74 @@ Created on Mon Oct 03 13:36:07 2016
 
 @author: Bert Coerver, b.coerver@unesco-ihe.org
 """
+
+def get_sheet7_classes():   
+    live_feed = {'Pasture':.5,
+                 'Crop':.25}
+# LULC class to Pasture or Crop
+    feed_dict = {'Pasture':[2,3,12,13,14,15,16,17,20,29,34],
+                 'Crop':[35,36,37,38,39,40,41,42,43,44,45,54,55,56,57,58,59,60,61,62]}
+    
+    # above ground biomass for tree and bush classes
+    abv_grnd_biomass_ratio = {'1':.26, # protected forest
+                              '8':.24, # closed deciduous forest
+                              '9':.43, # open deciduous forest
+                              '10':.23, # closed evergreen forest
+                              '11':.46, # open evergreen forest
+                              '12':.48, # closed savanna
+                              '13':.48} # open savanna
+    # C content as fraction dry matter for Carbon sequestration calculations
+    c_fraction = {'default':.47
+            }
+    
+    # 5% of above ground biomass for now
+    fuel_dict ={'all':.05}
+    # dict: class - lulc
+    sheet7_lulc = {
+    'PROTECTED':    {'Forest': [1],
+                    'Shrubland': [2],
+                    'Natural grasslands':[3],
+                    'Natural water bodies':[4],
+                    'Wetlands':[5],
+                    'Glaciers':[6],
+                    'Others':[7]
+                    },
+    'UTILIZED':     {'Forest':[8,9,10,11],
+                    'Shrubland':[14],
+                    'Natural grasslands':[12,13,15,16,20],
+                    'Natural water bodies':[23,24,],
+                    'Wetlands':[17,19,25,30,31],
+                    'Others':[18,21,22,26,27,28,29,32]
+                    },
+    'MODIFIED':     {'Rainfed crops': [34,35,36,37,38,39,40,41,42,43,44],
+                    'Forest plantations':[33],
+                    'Settlements':[47,48,49,50,51],
+                    'Others':[45,46]
+                    },
+    'MANAGED': {'Irrigated crops':[52,53,54,55,56,57,58,59,60,61,62],
+                'Managed water bodies':[63,65,74],
+                'Residential':[68,69,71,72],
+                'Industry':[67,70,76],
+                'Others':[75,78,77],
+                'Indoor domestic':[66],
+                'Indoor industry':[0],
+                'Greenhouses':[64],
+                'Livestock and husbandry':[73],
+                'Power and energy':[79,80],
+                }
+
+    }
+
+    sheet7_lulc_classes =dict()
+    for k in sheet7_lulc.keys():
+        l = []
+        for k2 in sheet7_lulc[k].keys():
+            l.append(sheet7_lulc[k][k2])
+        sheet7_lulc_classes[k]=[item for sublist in l for item in sublist]
+    return live_feed, feed_dict, abv_grnd_biomass_ratio,fuel_dict,sheet7_lulc_classes,c_fraction
+
+
+
 def get_lulc_cmap():
     
     from matplotlib.colors import LinearSegmentedColormap
@@ -374,10 +442,10 @@ def get_sheet4_6_fractions(version = '1.0'):
     'Aquaculture':          0.20}
     
     sw_supply_fractions['1.0'] = {
-    'Forests':              0.005,
-    'Shrubland':            0.10,
-    'Rainfed Crops':        0.05,
-    'Forest Plantations':   0.005,
+    'Forests':              0.001,
+    'Shrubland':            0.001,
+    'Rainfed Crops':        0.001,
+    'Forest Plantations':   0.001,
     'Natural Water Bodies': 0.95,
     'Wetlands':             0.95,
     'Natural Grasslands':   0.30,
@@ -390,10 +458,10 @@ def get_sheet4_6_fractions(version = '1.0'):
     'Aquaculture':          0.95}
     
     sw_return_fractions['1.0'] = {
-    'Forests':              9999,
-    'Shrubland':            9999,
-    'Rainfed Crops':        9999,
-    'Forest Plantations':   9999,
+    'Forests':              0.05,
+    'Shrubland':            0.05,
+    'Rainfed Crops':        0.05,
+    'Forest Plantations':   0.05,
     'Natural Water Bodies': 0.95,
     'Wetlands':             0.95,
     'Natural Grasslands':   0.10,
