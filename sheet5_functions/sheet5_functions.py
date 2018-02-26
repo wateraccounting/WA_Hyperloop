@@ -17,6 +17,8 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from scipy import interpolate
 
+
+
 import WA_Hyperloop.becgis as becgis
 from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.get_dictionaries as gd
@@ -158,7 +160,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
     split_discharge = discharge_split(global_data["wpl_tif"],global_data["environ_water_req"],discharge_sum,ro_fhs,fractions_fhs,sb_fhs_code_names,date_list)
 
     #%% Add arrows to template when possible (dependent on subbasin structure)
-    svg_template = sheet_5_dynamic_arrows(dico_in,dico_out,test_svg = template, outpath = os.path.join(output_folder, 'temp_sheet5.svg'))
+    svg_template = sheet_5_dynamic_arrows(dico_in,dico_out,template,os.path.join(output_folder, 'temp_sheet5.svg'))
     
     #%% Write CSV file
     results = Vividict()
@@ -247,7 +249,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
     
     return complete_data
 
-def sheet_5_dynamic_arrows(dico_in,dico_out,test_svg = 'D:\Code\sheeet5_dyn.svg',outpath = 'sheet5_with_arrows_temp.svg'):
+def sheet_5_dynamic_arrows(dico_in,dico_out,test_svg,outpath):
     normal_arrow = {}
     straight_out = {}
     straight_in = {}
@@ -358,7 +360,7 @@ def sheet_5_dynamic_arrows(dico_in,dico_out,test_svg = 'D:\Code\sheeet5_dyn.svg'
         
         tree.write(outpath)
     else:
-            outpath = test_svg
+            shutil.copyfile(test_svg, outpath)
             print ('ERROR: unexpected number of arrows.\n      Basin structure too complex to generate Sheet7 arrows automatically.\
                          \n      Standard template returned as output.')
     return outpath
