@@ -22,7 +22,7 @@ from WA_Hyperloop.paths import get_path
 def create_sheet2(complete_data, metadata, output_dir):
     
     if not np.all(['i' in complete_data.keys(), 't' in complete_data.keys()]):
-        i_files, i_dates, t_files, t_dates = splitET_ITE(complete_data['et'][0], 
+        t_files, t_dates, i_files, i_dates = splitET_ITE(complete_data['et'][0], 
                                                          complete_data['et'][1], 
                                                          complete_data['lai'][0], 
                                                          complete_data['lai'][1], 

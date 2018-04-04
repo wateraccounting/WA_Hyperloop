@@ -222,37 +222,38 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     
     print 'max supply frac:', np.nanmax(becgis.OpenAsArray(sw_supply_fraction_tif, nan_values = True))
     
-    for date in common_dates:
-        
-        conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
-
-        ###
-        # Calculate supply and split into GW and SW supply
-        ###
-#        if 'supply' in complete_data:
-        total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
-#        else:
-#            total_supply_tif = total_supply(conventional_et_tif, other_consumed_tif, metadata['lu'], lucs, consumed_fractions, output_dir, date)
-
-        supply_sw_tif, supply_gw_tif = split_flows(total_supply_tif, sw_supply_fraction_tif, os.path.join(output_dir, 'data'), date, flow_names = ['supply_sw','supply_gw'])
-
-        os.remove(supply_gw_tif)
-        
-        supply_sw = np.append(supply_sw, supply_sw_tif)
-        
-    complete_data['supply_sw'] = (supply_sw, common_dates)
+#    for date in common_dates:
+#        
+#        conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
+#
+#        ###
+#        # Calculate supply and split into GW and SW supply
+#        ###
+##        if 'supply' in complete_data:
+#        total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
+##        else:
+##            total_supply_tif = total_supply(conventional_et_tif, other_consumed_tif, metadata['lu'], lucs, consumed_fractions, output_dir, date)
+#
+#        supply_sw_tif, supply_gw_tif = split_flows(total_supply_tif, sw_supply_fraction_tif, os.path.join(output_dir, 'data'), date, flow_names = ['supply_sw','supply_gw'])
+#
+#        os.remove(supply_gw_tif)
+#        
+#        supply_sw = np.append(supply_sw, supply_sw_tif)
+#        
+#    complete_data['supply_sw'] = (supply_sw, common_dates)
     ###
     # Correct outflow to match with GRACE storage
     ###
-#    a, complete_data['supply_sw'] = correct_var(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_total', new_var = 'supply_sw', slope = True)
-#    print '-----> alpha = {0}'.format(a[0])
-#    complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
-
-    a = correct_var(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_sw', slope = True)
-    
+    a, complete_data['supply_sw'] = correct_var(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_total', new_var = 'supply_sw', slope = True)
     print '-----> alpha = {0}'.format(a[0])
-    
     complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
+
+#    a = correct_var(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_sw', slope = True)
+#    
+#    print metadata['name']
+#    print '-----> alpha = {0}'.format(a[0])
+#    
+#    complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
 
     #a = [r"C:\Users\bec\Desktop\bla.tif"]
     
@@ -1532,8 +1533,8 @@ def splitET_BlueGreen(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dates, 
         ax.set_title('Average ET and ETblue and ETgreen fractions')
         ax.set_ylabel('ET [mm/month]')
         ax.patch.set_visible(True)
-        ax.fill_between(dts, et, color = '#a3db76', label = 'ETgreen')
-        ax.fill_between(dts, etblue, color = '#6bb8cc', label = 'ETblue')
+        ax.fill_between(dts, et, color = '#6bb8cc', label = 'ETblue')
+        ax.fill_between(dts, et - etblue, color = '#a3db76', label = 'ETgreen')
         ax.scatter(dts, et, color = 'k')
         ax.legend(loc = 'upper left',fancybox=True, shadow=True)
         fig.autofmt_xdate()

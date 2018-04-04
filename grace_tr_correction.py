@@ -99,10 +99,8 @@ def endofmonth(dates):
     
 
 def calc_var_correction(metadata, complete_data, output_dir,
-                        formula = 'p-et-tr+supply_sw', plot = False,
-                        slope = False):
-
-    a_guess = np.array([1.0])
+                        formula = 'p-et-tr+supply_total', plot = True,
+                        slope = True):
     
     output_dir = os.path.join(output_dir)
     if not os.path.exists(output_dir):
@@ -125,14 +123,43 @@ def calc_var_correction(metadata, complete_data, output_dir,
     msk = ~np.isnan(grace[1])
 
 
-    def func(x, a):
+#    def func(x, a):
+#        
+#        ds = np.zeros(msk.sum())
+#        for key, oper in zip(keys, operts):
+#            
+#            scalar_array = alpha * (np.cos((x - theta) * (np.pi / 6)) * 0.5 + 0.5) + (beta * (1 - alpha))
+#            
+#            if key == keys[-1]:
+#                new_data = tss[key][1][msk][x] * a
+#            else:
+#                new_data = tss[key][1][msk][x]
+#            
+#            if oper == '+':
+#                ds += new_data
+#            elif oper == '-':
+#                ds -= new_data
+#            elif oper == '/':
+#                ds /= new_data
+#            elif oper == '*':
+#                ds *= new_data
+#            else:
+#                raise ValueError('Unknown operator in formula')
+#        
+#        if slope:
+#            return np.cumsum(ds) - np.mean(np.cumsum(ds))
+#        else:
+#            return np.cumsum(ds)
+
+    def func(x, alpha, beta, theta, slope = slope):
         
         ds = np.zeros(msk.sum())
         for key, oper in zip(keys, operts):
+            
+            scalar_array = alpha * (np.cos((x - theta) * (np.pi / 6)) * 0.5 + 0.5) + (beta * (1 - alpha))
+            
             if key == keys[-1]:
-                #special = get_ts_from_complete_data_spec(complete_data, metadata['lu'], [key], a)
-                #new_data = special[key][1][msk][x]
-                new_data = tss[key][1][msk][x] * a
+                new_data = tss[key][1][msk][x] * scalar_array
             else:
                 new_data = tss[key][1][msk][x]
             
@@ -151,45 +178,72 @@ def calc_var_correction(metadata, complete_data, output_dir,
             return np.cumsum(ds) - np.mean(np.cumsum(ds))
         else:
             return np.cumsum(ds)
-
-
+        
     x = range(msk.sum())
-    
-    alpha_min = 0.
-    if 'alpha_min' in metadata.keys():
-        if metadata['alpha_min']:
-            alpha_min = metadata['alpha_min']
     
     print "Starting alpha optimization"
     
-    a,b = optimization.curve_fit(func, x, grace[1][msk],
-                                 a_guess, bounds = (alpha_min, 1.00))                    
+    p0 = [0.0, 0.5, 6.0]
     
-    new = keys[-1]+'_new'
-    tss[new] = (tss[keys[-1]][0], a[0]*tss[keys[-1]][1])
-    formula_dsdt_new = formula.replace(keys[-1], new)
+    a, b = optimization.curve_fit(func, x, grace[1][msk], p0 = p0 , bounds=(0, [1.0, 1., 12.]))                   
     
-    path = os.path.join(output_dir, metadata['name'], metadata['name'])
+    path = os.path.join(output_dir, metadata['name'])
     
-    if plot:
-        plot_optimization(grace, func, a, x, keys[-1])
-        plt.savefig(path + '_optimization.png')
-        plt.close()
-        
-        plot_storage(tss, formula, grace, a_guess)
-        plt.savefig(path + '_orig_dsdt.png')
-        plt.close()
-        
-        plot_cums(tss, grace, formula, formula_dsdt_new)
-        plt.savefig(path + '_cumulatives_wb.png')
-        plt.close()
-        
-        plot_storage(tss, formula_dsdt_new, grace, a)
-        plt.savefig(path + '_corr_dsdt.png')
-        plt.close()
+    plt.figure(1)
+    plt.clf()
+    plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 100)
+    ax = plt.gca()
+    plt.plot(*tss['supply_total'], label = 'Total Supply', color = 'k')
+    ax.fill_between(*tss['supply_total'], color = '#c48211', label = 'GW Supply')
+    ax.fill_between(*calc_swsupply(tss['supply_total'], a), color = '#6bb8cc', label = 'SW Supply')
+    plt.scatter(*tss['supply_total'], color = 'k')
+    plt.ylim([0, np.nanmax(tss['supply_total'][1]) * 1.2])
+    plt.xlim([tss['supply_total'][0][0],tss['supply_total'][0][-1]])
+    plt.title('Surface and Groundwater Supplies')
+    plt.legend()
+    
+    plt.figure(2)
+    plt.clf()
+    plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
+    ax = plt.gca()
+    scalar_array = a[0] * (np.cos((x - a[2]) * (np.pi / 6)) * 0.5 + 0.5) + (a[1] * (1 - a[0]))
+    plt.plot(tss['supply_total'][0], scalar_array, color = 'k')
+    plt.ylim([0, 1])
+    plt.xlim([tss['supply_total'][0][0],tss['supply_total'][0][-1]])
+    plt.title('SW:GW Ratio')
+    plt.suptitle(r'$SW = (\alpha \cdot [\cos(t \cdot \frac{2\pi}{12} - \
+                 \theta) \cdot \frac{1}{2} + \frac{1}{2}] + \beta \cdot \
+                 (1 - \alpha)) \cdot TS$' + '\n' + r'$\alpha = $' + 
+                 '{0:.2f}'.format(a[0]) + r', $\beta = $' + 
+                 '{0:.2f}'.format(a[1]) + r', $\theta = $' + 
+                 '{0:.2f}'.format(a[2]))
 
+    grace = read_grace_csv(metadata['GRACE'])
+    grace = interp_ts(grace, (endofmonth(tss[keys[0]][0]), -9999))
+    new_dates = np.array([datetime(dt.year, dt.month, 1) for dt in grace[0]])
+    grace = (new_dates, grace[1])
+    
+    plt.figure(3)
+    plt.clf()
+    plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
+    ax = plt.gca()
+    plt.plot(*grace, label = 'GRACE', color = 'r')
+    plt.plot(*calc_polyfit(grace, order = 1), color = 'r', linestyle = ':')
+    plt.plot(grace[0], func(x, a[0], a[1], a[2], slope = False), color = 'k', label = 'WAplus')
+    plt.plot(*calc_polyfit((grace[0], func(x, a[0], a[1], a[2], slope = False)), order = 1), color = 'k', linestyle = ':')
+    plt.legend()
+    plt.xlim([grace[0][0], grace[0][-1]])
+    plt.ylabel('dS/dt [mm/month]')
+    
+    
     return a
 
+
+def calc_swsupply(total_supply, params):
+    x = range(len(total_supply[0]))
+    scalar_array = params[0] * (np.cos((x - params[2]) * (np.pi / 6)) * 0.5 + 0.5) + (params[1] * (1 - params[0]))
+    sw_supply = (total_supply[0], total_supply[1] * scalar_array)
+    return sw_supply
 
 def correct_var_test(metadata, complete_data, output_dir, formula,
                 new_var = None, slope = False):
@@ -234,7 +288,7 @@ def correct_var(metadata, complete_data, output_dir, formula,
                 new_var = None, slope = False):
     var = split_form(formula)[0][-1]
     a = calc_var_correction(metadata, complete_data, output_dir,
-                            formula = formula, slope = slope)
+                            formula = formula, slope = slope, plot = True)
     for fn in complete_data[var][0]:
         geo_info = becgis.GetGeoInfo(fn)
         data = becgis.OpenAsArray(fn, nan_values = True) * a[0]
@@ -272,80 +326,6 @@ def read_grace_csv(csv_file):
     grace_mm = np.array(df['dS [mm]'].values)
     
     return np.array(dt), grace_mm
-
-
-def plot_optimization(grace, func, a, x, title):
-    msk = ~np.isnan(grace[1])
-    plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-    plt.plot(*grace, label = 'target')
-    plt.plot(grace[0][msk], func(x,a[0]), label = 'optimized')
-    plt.plot(grace[0][msk], func(x,1), label = 'original')
-    plt.suptitle('a = {0}'.format(a[0]))
-    plt.title(title)
-    plt.legend()
-
-def plot_storage(tss, formula, grace, a):
-
-    varias = re.split("\W", formula)
-    
-    plt.figure(figsize = (10,8))
-    plt.clf()
-    
-    ax1 = plt.gca()
-    ax2 = ax1.twinx()
-    
-    linestyles = ['-', '--', '-.', ':']
-    
-    for i, vari in enumerate(varias):
-        ax1.plot(*tss[vari], linestyle=linestyles[i], color='k', label=vari)
-    
-    dstoragedt = calc_form(tss, formula)
-    storage = (dstoragedt[0], np.cumsum(dstoragedt[1]))
-    
-    ax2.plot(*storage, linestyle='-', color='r', label='Storage (WB)')
-    ax2.plot(*calc_polyfit(storage), linestyle=':', color='r')
-    
-    if grace:
-        ax2.plot(*grace, linestyle='--', color='r', label='Storage (GRACE)')
-        ax2.plot(*calc_polyfit(grace), linestyle=':', color='r')
-    
-    ax1.set_ylabel('Flux [mm/month]')
-    ax2.set_ylabel('S [mm]')
-    
-    plt.xlabel('Time')
-    plt.title('dSdt = {0}, {1} = {2} * tr'.format(formula,
-              varias[-1], a[0]))
-    ax1.legend(loc = 'upper left')
-    ax2.legend(loc = 'upper right')
-
-
-def plot_cums(tss, storage, formula_dsdt, formula_dsdt_new):
-    plt.figure(figsize = (10,8))
-    plt.clf()
-    plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-    
-    keys = split_form(formula_dsdt)[0]
-    
-    for key in keys:
-        plt.plot(tss[key][0], np.cumsum(tss[key][1]),
-                 label = '$\sum {0}$'.format(key))
-    
-    new = keys[-1]+'_new'
-    plt.plot(tss[new][0], np.cumsum(tss[new][1]),
-             label = '$\sum {0}_{1}$'.format(keys[-1], r'{corr}'))
-    
-    msk = ~np.isnan(storage[1])
-    plt.plot(storage[0][msk], storage[1][msk], label = 'S_grace')
-    
-    dsdt_orig = calc_form(tss, formula_dsdt)
-    plt.plot(dsdt_orig[0], np.cumsum(dsdt_orig[1]), label = 'S_orig')
-    
-    dsdt_new = calc_form(tss, formula_dsdt_new)
-    plt.plot(dsdt_new[0], np.cumsum(dsdt_new[1]), label = 'S_corr')
-    
-    plt.xlabel('Time')
-    plt.ylabel('Stock [mm]')
-    plt.legend()
 
 
 def calc_polyfit(ts, order = 1):

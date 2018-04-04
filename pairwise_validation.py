@@ -383,7 +383,7 @@ def plot_scatter_series(x,y,xlabel,ylabel,title, output_dir, suptitle = None, da
     maxi = np.nanmax([np.nanmax(x),np.nanmax(y)])*1.1
     mini = np.nanmin([np.nanmin(x),np.nanmin(y), 0.0])*1.1
     m, b = np.polyfit(x, y, 1)  
-    if dates.size:
+    if dates != None:
         C = np.array([date.month for date in dates])
         clrs = ['#6bb8cc','#87c5ad', '#9ad28d', '#acd27a', '#c3b683', '#d4988b', '#b98b89', '#868583', '#497e7c']
         cmap = LinearSegmentedColormap.from_list('LUC', clrs, N = 12)
@@ -402,7 +402,7 @@ def plot_scatter_series(x,y,xlabel,ylabel,title, output_dir, suptitle = None, da
     plt.ylim([mini, maxi])
     plt.xlim([mini, maxi])
     plt.legend(loc='upper left')
-    if dates.size:
+    if dates != None:
         cbar = plt.colorbar(label = 'Month')
         cbar.set_ticks(range(1,13))
         cbar.set_ticklabels(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])

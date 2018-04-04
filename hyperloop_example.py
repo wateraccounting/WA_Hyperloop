@@ -577,7 +577,8 @@ basins[ID] = {
             'lu':                       r"D:\project_ADB\subproject_WALU\Clipped_final\Basins_Vietnam_ID_{0}.tif".format(ID),
             'full_basin_mask':          r"D:\project_ADB\subproject_Catchment_Map\Basins_exploded\Raster\ID{0}.tif".format(ID),
             'masks':                    r"D:\project_ADB\subproject_Catchment_Map\Basins_large\Subbasins_masks\ID{0}".format(ID),
-            'alpha_min':                None,            
+            'alpha_min':                None,
+            
             # Give start and enddates growingseasons, classifications to select Harvest Index and Water Content, LU-classification number
             'crops':                    [
                                         ('D:\\project_ADB\\subproject_Crop_Calendars\\consolidation\\seasons_perennial.csv', 'Rubber', 'Other crops', '-', 33.0) ,
@@ -672,6 +673,8 @@ steps['Create Sheet 1']                  = True
 # Start hyperloop
 ###
 for ID, metadata in basins.items()[10:11]:
+    
+    
     
     print 'Start basin {0}: {1}'.format(ID, metadata['name'])
     plt.close("all")

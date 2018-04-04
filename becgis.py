@@ -1017,7 +1017,7 @@ def ZonalStats(fhs, dates, output_dir, quantity, unit, location, color = '#6bb8c
     ax.set_title(quantity + ', ' + location)
     fig.autofmt_xdate()
     [i.set_zorder(10) for i in ax.spines.itervalues()]
-    plt.savefig(os.path.join(output_dir, quantity + '_' + location + '_ts.jpg'))
+    plt.savefig(os.path.join(output_dir, quantity + '_' + location + '_ts.png'))
     plt.close(fig)
         
     fig = plt.figure(figsize = (10,5))
@@ -1031,7 +1031,7 @@ def ZonalStats(fhs, dates, output_dir, quantity, unit, location, color = '#6bb8c
     ax.set_ylabel(quantity + ' ' + unit)
     ax.set_title('Monthly average ' + quantity + ', ' + location)
     [i.set_zorder(10) for i in ax.spines.itervalues()]
-    plt.savefig(os.path.join(output_dir, quantity + '_' + location + '_monthly.jpg'))
+    plt.savefig(os.path.join(output_dir, quantity + '_' + location + '_monthly.png'))
     plt.close(fig)
         
     fig = plt.figure(figsize = (10,5))
@@ -1044,7 +1044,7 @@ def ZonalStats(fhs, dates, output_dir, quantity, unit, location, color = '#6bb8c
     ax.set_ylabel(quantity + ' ' + unit)
     ax.set_title('Yearly average ' + quantity + ', ' + location)
     [i.set_zorder(10) for i in ax.spines.itervalues()]
-    plt.savefig(os.path.join(output_dir, quantity + '_' + location + '_yearly.jpg'))
+    plt.savefig(os.path.join(output_dir, quantity + '_' + location + '_yearly.png'))
     plt.close(fig)
     
     monthly_max = np.nanmax(monthly_ts)

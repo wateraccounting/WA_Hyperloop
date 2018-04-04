@@ -139,75 +139,75 @@ def plot_indicator(path, *args):
         arg['dates'] = dates
 
 #%%
-plt.figure()
-
-## the data
-idc_means = dict()
-idc_stds = dict()
-
-for ID, basin in basins.items():
-
-    idc_means[ID] = list()
-    idc_stds[ID] = list()
-
-    for indicator, values in basin['idcs'].items():
-
-        if indicator != 'dates':
-            idc_means[ID].append(np.nanmean(values))
-            idc_stds[ID].append(np.nanstd(values))
-
-no_of_indicators = len(basin1)
-no_of_basins = len(basins.keys())
-
-## necessary variables
-ind = np.arange(N)                # the x locations for the groups
-width = 0.8 / no_basins                   # the width of the bars
-
-#colors = ['#6bb8cc','#87c5ad', '#9ad28d', '#acd27a', '#c3b683', '#d4988b', '#b98b89', '#868583', '#497e7c'] * 3
-import matplotlib.colors as colors
-import matplotlib.cm as cmx
-jet = plt.get_cmap('tab20')
-cNorm  = colors.Normalize(vmin=0, vmax=14)
-scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=jet)
-
-values = range(15)
-rects = tuple()
-i = 0
-## the bars
-for ID in basins.keys():
-    rects1 = plt.bar(ind + i*width, idc_means[ID], width,
-                    color= scalarMap.to_rgba(values[i]),
-                    #yerr=idc_stds[ID],
-                    error_kw=dict(elinewidth=2,ecolor='red'))
-    
-    i+= 1
-    rects += (rects1, )
-
-xticks = basin['idcs'].keys()
-xticks.pop(xticks.index('dates'))
-xticks = [get_def_longname(short_name) for short_name in xticks]
-#rects2 = ax.bar(ind+width, basin2, width,
-#                    color='red',
-#                    yerr=basin2_std,
-#                    error_kw=dict(elinewidth=2,ecolor='black'))
-
-
-# axes and labels
-plt.xlim(-width,len(ind)+width)
-plt.ylim(0,1)
-plt.ylabel('Scores')
-#ax.set_title()
-#xTickMarks = xticks
-plt.xticks(ind+width)
-ax = plt.gca()
-xtickNames = ax.set_xticklabels(xticks)
-plt.setp(xtickNames, rotation=45, fontsize=10)
-
-## add a legend
-names = [basin['name'] for basin in basins.values()]
-ax.legend( rects, names)
-
-plt.show()
+#plt.figure()
+#
+### the data
+#idc_means = dict()
+#idc_stds = dict()
+#
+#for ID, basin in basins.items():
+#
+#    idc_means[ID] = list()
+#    idc_stds[ID] = list()
+#
+#    for indicator, values in basin['idcs'].items():
+#
+#        if indicator != 'dates':
+#            idc_means[ID].append(np.nanmean(values))
+#            idc_stds[ID].append(np.nanstd(values))
+#
+#no_of_indicators = len(basin1)
+#no_of_basins = len(basins.keys())
+#
+### necessary variables
+#ind = np.arange(N)                # the x locations for the groups
+#width = 0.8 / no_basins                   # the width of the bars
+#
+##colors = ['#6bb8cc','#87c5ad', '#9ad28d', '#acd27a', '#c3b683', '#d4988b', '#b98b89', '#868583', '#497e7c'] * 3
+#import matplotlib.colors as colors
+#import matplotlib.cm as cmx
+#jet = plt.get_cmap('tab20')
+#cNorm  = colors.Normalize(vmin=0, vmax=14)
+#scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=jet)
+#
+#values = range(15)
+#rects = tuple()
+#i = 0
+### the bars
+#for ID in basins.keys():
+#    rects1 = plt.bar(ind + i*width, idc_means[ID], width,
+#                    color= scalarMap.to_rgba(values[i]),
+#                    #yerr=idc_stds[ID],
+#                    error_kw=dict(elinewidth=2,ecolor='red'))
+#    
+#    i+= 1
+#    rects += (rects1, )
+#
+#xticks = basin['idcs'].keys()
+#xticks.pop(xticks.index('dates'))
+#xticks = [get_def_longname(short_name) for short_name in xticks]
+##rects2 = ax.bar(ind+width, basin2, width,
+##                    color='red',
+##                    yerr=basin2_std,
+##                    error_kw=dict(elinewidth=2,ecolor='black'))
+#
+#
+## axes and labels
+#plt.xlim(-width,len(ind)+width)
+#plt.ylim(0,1)
+#plt.ylabel('Scores')
+##ax.set_title()
+##xTickMarks = xticks
+#plt.xticks(ind+width)
+#ax = plt.gca()
+#xtickNames = ax.set_xticklabels(xticks)
+#plt.setp(xtickNames, rotation=45, fontsize=10)
+#
+### add a legend
+#names = [basin['name'] for basin in basins.values()]
+#ax.legend( rects, names)
+#
+#plt.show()
 
 #%%
 
@@ -251,15 +251,15 @@ def calc_indicators(basins, output_dir):
         basin['idcs'] = dict()
         basin['stats'] = dict()
 
-        dir1 = os.path.join(output_dir, basin['name'], 'csvs_monthly')
+        dir1 = os.path.join(output_dir, basin['name'], 'sheet1', 'sheet1_monthly')
         sh1_indicators = indicators.sheet1_indicators(dir1)
         basin['idcs'] = merge_two_dicts(basin['idcs'], sh1_indicators)
 
-        dir2 = os.path.join(output_dir, basin['name'], 'monthly_sheet2')
+        dir2 = os.path.join(output_dir, basin['name'], 'sheet2', 'sheet2_monthly')
         sh2_indicators = indicators.sheet2_indicators(dir2)
         basin['idcs'] = merge_two_dicts(basin['idcs'], sh2_indicators)
 
-        dir4 = os.path.join(output_dir, basin['name'], 'sheet4')
+        dir4 = os.path.join(output_dir, basin['name'], 'sheet4', 'sheet4_monthly')
         sh4_indicators = indicators.sheet4_indicators(dir4)
         basin['idcs'] = merge_two_dicts(basin['idcs'], sh4_indicators)
 
@@ -316,7 +316,8 @@ def calc_avg_flux(mask, basin, output_dir, flux):
     Calculate the temporally and spatially average of a timeseries
     of maps.
     """
-    input_dir = os.path.join(output_dir, basin['name'], flux)
+    input_dir = os.path.join(output_dir, basin['name'], 'data', flux)
+    print input_dir
     ets = bg.SortFiles(input_dir, [-10, -6], month_position=[-6, -4])[0]
     mean_map = calc_mean(ets)
     et = calc_mskd_mean(mask, mean_map, flux)
@@ -349,7 +350,7 @@ def calc_monthly_p(basin, output_dir):
     """
     Calculate the monthly average precipitation in a basin.
     """
-    input_dir = os.path.join(output_dir, basin['name'], 'p')
+    input_dir = os.path.join(output_dir, basin['name'], 'data', 'p')
     precip = bg.SortFiles(input_dir, [-10, -6], month_position=[-6, -4])
 
     prcp_idc = dict()
