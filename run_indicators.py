@@ -5,7 +5,7 @@ Created on Tue Nov 28 13:05:42 2017
 @author: bec
 """
 import os
-import indicators
+from WA_Hyperloop import indicators
 import numpy as np
 import tempfile
 import matplotlib.pyplot as plt
