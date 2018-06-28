@@ -15,6 +15,9 @@ from WA_Hyperloop.paths import get_path
 
 
 def mm_to_km3(lu_fh, var_fhs):
+    """
+    
+    """
     area =  MapPixelAreakm(lu_fh)
     driver, NDV, xsize, ysize, GeoT, Projection = GetGeoInfo(lu_fh)
     var_new_fhs = list()
@@ -976,6 +979,7 @@ def ZonalStats(fhs, dates, output_dir, quantity, unit, location, color = '#6bb8c
     data_monthly_ts = dict()
     data_monthly_counter = dict()
     months = np.unique([date.month for date in dates])
+    
     for month in months:
         data_monthly_ts[month] = 0
         data_monthly_counter[month] = 0
@@ -983,6 +987,7 @@ def ZonalStats(fhs, dates, output_dir, quantity, unit, location, color = '#6bb8c
     data_yearly_ts = dict()
     data_yearly_counter = dict()
     years = np.unique([date.year for date in dates])
+    
     for year in years:
         data_yearly_ts[year] = 0
         data_yearly_counter[year] = 0
