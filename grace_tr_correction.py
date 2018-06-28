@@ -122,35 +122,6 @@ def calc_var_correction(metadata, complete_data, output_dir,
     
     msk = ~np.isnan(grace[1])
 
-
-#    def func(x, a):
-#        
-#        ds = np.zeros(msk.sum())
-#        for key, oper in zip(keys, operts):
-#            
-#            scalar_array = alpha * (np.cos((x - theta) * (np.pi / 6)) * 0.5 + 0.5) + (beta * (1 - alpha))
-#            
-#            if key == keys[-1]:
-#                new_data = tss[key][1][msk][x] * a
-#            else:
-#                new_data = tss[key][1][msk][x]
-#            
-#            if oper == '+':
-#                ds += new_data
-#            elif oper == '-':
-#                ds -= new_data
-#            elif oper == '/':
-#                ds /= new_data
-#            elif oper == '*':
-#                ds *= new_data
-#            else:
-#                raise ValueError('Unknown operator in formula')
-#        
-#        if slope:
-#            return np.cumsum(ds) - np.mean(np.cumsum(ds))
-#        else:
-#            return np.cumsum(ds)
-
     def func(x, alpha, beta, theta, slope = slope):
         
         ds = np.zeros(msk.sum())
@@ -179,7 +150,9 @@ def calc_var_correction(metadata, complete_data, output_dir,
         else:
             return np.cumsum(ds)
         
-    x = range(msk.sum())
+    x = np.where(msk == True)[0].astype(int).tolist()
+    
+    x0 = (x[0], grace[0][msk][0])
     
     print "Starting alpha optimization"
     
@@ -187,20 +160,21 @@ def calc_var_correction(metadata, complete_data, output_dir,
     
     a, b = optimization.curve_fit(func, x, grace[1][msk], p0 = p0 , bounds=(0, [1.0, 1., 12.]))                   
     
-    path = os.path.join(output_dir, metadata['name'])
-    
     plt.figure(1)
     plt.clf()
     plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 100)
     ax = plt.gca()
     plt.plot(*tss['supply_total'], label = 'Total Supply', color = 'k')
-    ax.fill_between(*tss['supply_total'], color = '#c48211', label = 'GW Supply')
-    ax.fill_between(*calc_swsupply(tss['supply_total'], a), color = '#6bb8cc', label = 'SW Supply')
+    
+    ax.fill_between(*tss['supply_total'], color = '#6bb8cc', label = 'SW Supply')
+    ax.fill_between(*calc_gwsupply(tss['supply_total'], a), color = '#c48211', label = 'GW Supply')
+                    
     plt.scatter(*tss['supply_total'], color = 'k')
     plt.ylim([0, np.nanmax(tss['supply_total'][1]) * 1.2])
     plt.xlim([tss['supply_total'][0][0],tss['supply_total'][0][-1]])
     plt.title('Surface and Groundwater Supplies')
     plt.legend()
+    plt.savefig(os.path.join(output_dir, metadata['name'], 'SWGW_Supply'))
     
     plt.figure(2)
     plt.clf()
@@ -210,13 +184,14 @@ def calc_var_correction(metadata, complete_data, output_dir,
     plt.plot(tss['supply_total'][0], scalar_array, color = 'k')
     plt.ylim([0, 1])
     plt.xlim([tss['supply_total'][0][0],tss['supply_total'][0][-1]])
-    plt.title('SW:GW Ratio')
-    plt.suptitle(r'$SW = (\alpha \cdot [\cos(t \cdot \frac{2\pi}{12} - \
-                 \theta) \cdot \frac{1}{2} + \frac{1}{2}] + \beta \cdot \
-                 (1 - \alpha)) \cdot TS$' + '\n' + r'$\alpha = $' + 
-                 '{0:.2f}'.format(a[0]) + r', $\beta = $' + 
-                 '{0:.2f}'.format(a[1]) + r', $\theta = $' + 
-                 '{0:.2f}'.format(a[2]))
+    #plt.title('SW:GW Ratio')
+#    plt.suptitle(r'$SW = (\alpha \cdot [\cos(t \cdot \frac{2\pi}{12} - \
+#                 \theta) \cdot \frac{1}{2} + \frac{1}{2}] + \beta \cdot \
+#                 (1 - \alpha)) \cdot TS$' + '\n' + r'$\alpha = $' + 
+#                 '{0:.2f}'.format(a[0]) + r', $\beta = $' + 
+#                 '{0:.2f}'.format(a[1]) + r', $\theta = $' + 
+#                 '{0:.2f}'.format(a[2]))
+    plt.savefig(os.path.join(output_dir, metadata['name'], 'SWGW_Ratio'))
 
     grace = read_grace_csv(metadata['GRACE'])
     grace = interp_ts(grace, (endofmonth(tss[keys[0]][0]), -9999))
@@ -233,22 +208,25 @@ def calc_var_correction(metadata, complete_data, output_dir,
     plt.plot(*calc_polyfit((grace[0], func(x, a[0], a[1], a[2], slope = False)), order = 1), color = 'k', linestyle = ':')
     plt.legend()
     plt.xlim([grace[0][0], grace[0][-1]])
-    plt.ylabel('dS/dt [mm/month]')
+    plt.ylabel('dS/dt [mm/month]')    
+    plt.savefig(os.path.join(output_dir, metadata['name'], 'dSdt_Grace'))
     
-    
-    return a
+    return a, x0
 
 
-def calc_swsupply(total_supply, params):
+def calc_gwsupply(total_supply, params):
     x = range(len(total_supply[0]))
     scalar_array = params[0] * (np.cos((x - params[2]) * (np.pi / 6)) * 0.5 + 0.5) + (params[1] * (1 - params[0]))
-    sw_supply = (total_supply[0], total_supply[1] * scalar_array)
-    return sw_supply
+    gw_supply = (total_supply[0], total_supply[1] - (total_supply[1] * scalar_array))
+    return gw_supply
+
 
 def correct_var_test(metadata, complete_data, output_dir, formula,
                 new_var = None, slope = False):
+    
     var = split_form(formula)[0][-1]
-    a = calc_var_correction(metadata, complete_data, output_dir,
+    
+    a, x0 = calc_var_correction(metadata, complete_data, output_dir,
                             formula = formula, slope = slope)
     
     LULC = becgis.OpenAsArray(metadata['lu'])
@@ -260,26 +238,35 @@ def correct_var_test(metadata, complete_data, output_dir, formula,
         gw_classes += lucs[subclass]
         
     mask_gw = np.logical_or.reduce([LULC == value for value in gw_classes])
-    
-    alpha = np.ones(np.shape(LULC)) * a[0]
             
-    alpha[mask_gw] = 0.0
-    becgis.CreateGeoTiff(r"C:\Users\bec\Desktop\bla.tif", alpha, *geo_info)
-            
-    for fn in complete_data[var][0]:
+    for fn, date in zip(complete_data[var][0], complete_data[var][1]):
+        
+        time_scale = 'monthly'
+        if time_scale == 'monthly':
+            x = 12 * (date.year - x0[1].year) + (date.month - 1) + x0[0]
+        
+        scalar = a[0] * (np.cos((x - a[2]) * (np.pi / 6)) * 0.5 + 0.5) + (a[1] * (1 - a[0]))
+        
         geo_info = becgis.GetGeoInfo(fn)
-        data = becgis.OpenAsArray(fn, nan_values = True) * becgis.OpenAsArray(r"C:\Users\bec\Desktop\bla.tif", nan_values = True)
+        
+        data = becgis.OpenAsArray(fn, nan_values = True)
+        
+        scalar_array = np.ones(np.shape(LULC)) * scalar
+        #scalar_array[mask_gw] = 0.0
+        
+        data *= scalar_array
+        
         if new_var != None:
-            folder = os.path.join(output_dir, metadata['name'],
-                                  'data', new_var)
-            if not os.path.exists(folder):
-                os.makedirs(folder)
+            flder = os.path.join(output_dir, metadata['name'], 'data', new_var)
+            if not os.path.exists(flder):
+                os.makedirs(flder)
             bla = os.path.split(fn)[1].split('_')[-1]
             filen = 'supply_sw_' + bla[0:4] + '_' + bla[4:6] + '.tif'
-            fn = os.path.join(folder, filen)
+            fn = os.path.join(flder, filen)
         becgis.CreateGeoTiff(fn, data, *geo_info)
+        
     if new_var != None:
-        meta = becgis.SortFiles(folder, [-11,-7], month_position = [-6,-4])[0:2]
+        meta = becgis.SortFiles(flder, [-11,-7], month_position = [-6,-4])[0:2]
         return a, meta
     else:
         return a

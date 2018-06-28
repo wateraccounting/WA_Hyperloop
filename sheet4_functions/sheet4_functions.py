@@ -22,7 +22,7 @@ import WA_Hyperloop.becgis as becgis
 from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.get_dictionaries as gd
 from WA_Hyperloop.paths import get_path
-from WA_Hyperloop.grace_tr_correction import correct_var
+from WA_Hyperloop.grace_tr_correction import correct_var, correct_var_test
 
 def calc_difference(ds1, ds2, output_folder):
     
@@ -202,7 +202,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     non_recov_fraction_tif = non_recoverable_fractions(metadata['lu'], wpl_tif, lucs, output_dir2)
     sw_return_fraction_tif = fractions(metadata['lu'], sw_return_fractions, lucs, output_dir2, filename = 'sw_return_fraction.tif')
 
-    supply_sw = return_flow_sw_sw = return_flow_sw_gw = return_flow_gw_sw = return_flow_gw_gw = np.array([])
+    return_flow_sw_sw = return_flow_sw_gw = return_flow_gw_sw = return_flow_gw_gw = np.array([])
 
     complete_data['recharge'] = calc_recharge(complete_data['perc'], complete_data['dperc'])
 
@@ -244,7 +244,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     ###
     # Correct outflow to match with GRACE storage
     ###
-    a, complete_data['supply_sw'] = correct_var(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_total', new_var = 'supply_sw', slope = True)
+    a, complete_data['supply_sw'] = correct_var_test(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_total', new_var = 'supply_sw', slope = True)
     print '-----> alpha = {0}'.format(a[0])
     complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
 
@@ -401,7 +401,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         ###
         # Caculate return flows to gw and sw
         ###
-        return_flow_sw_sw_tif, return_flow_sw_gw_tif = split_flows(non_consumed_sw_tif, sw_return_fraction_tif, os.path.join(output_dir, 'data'), date, flow_names = ['return_swgw', 'return_swsw'])
+        return_flow_sw_sw_tif, return_flow_sw_gw_tif = split_flows(non_consumed_sw_tif, sw_return_fraction_tif, os.path.join(output_dir, 'data'), date, flow_names = ['return_swsw', 'return_swgw'])
         return_flow_gw_sw_tif, return_flow_gw_gw_tif = split_flows(non_consumed_gw_tif, sw_return_fraction_tif, os.path.join(output_dir, 'data'), date, flow_names = ['return_gwsw', 'return_gwgw'])
 
         ###
@@ -437,7 +437,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         return_flow_gw_sw = np.append(return_flow_gw_sw, return_flow_gw_sw_tif)
         return_flow_gw_gw = np.append(return_flow_gw_gw, return_flow_gw_gw_tif)
         
-        print "sheet 4 finished for {0} (going to {1})".format(date, complete_data['etb'][1][-1])
+        print "sheet 4 finished for {0} (going to {1})".format(date, common_dates[-1])
 
         #recharge_tif = complete_data["perc"][0][complete_data["perc"][1] == date][0]
         recharge_tif = complete_data["recharge"][0][complete_data["recharge"][1] == date][0]
