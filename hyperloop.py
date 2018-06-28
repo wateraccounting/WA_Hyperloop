@@ -17,6 +17,7 @@ import numpy as np
 from shutil import copyfile
 
 import WA_Hyperloop.becgis as becgis
+import WA_Hyperloop.get_dictionaries as gd
 
 def create_csv_yearly(input_folder, output_folder, year_position = [-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 1, minus_header_colums = None):
     """
@@ -181,7 +182,102 @@ def diagnosis_wp(metadata, complete_data, output_dir, waterpix):
     ax2.plot(common_dates, p_mm, common_dates, et_mm, common_dates, ro_mm)
     ax.plot(common_dates, np.cumsum(balance_mm), 'k')
     
+def supply_return_natural_lu(metadata, complete_data):
+    
+    lu_tif = metadata['lu']
+    LULC = becgis.OpenAsArray(lu_tif, nan_values = True)
+    lucs = gd.get_sheet4_6_classes()
+    
+    #new directories:
+    directory_sup = os.path.split(complete_data['supply_total'][0][0])[0]+'_corr'
+    directory_dro = os.path.split(complete_data['dro'][0][0])[0]+'_corr'
+    directory_dperc = os.path.split(complete_data['dperc'][0][0])[0]+'_corr'
+#    directory_perc = os.path.split(complete_data['perc'][0][0])[0]+'_corr'
+    directory_tr = os.path.split(complete_data['tr'][0][0])[0]+'_corr'
+    
+    if not os.path.exists(directory_sup):
+        os.makedirs(directory_sup)
+    if not os.path.exists(directory_dro):
+        os.makedirs(directory_dro)
+    if not os.path.exists(directory_dperc):
+        os.makedirs(directory_dperc)
+#    if not os.path.exists(directory_perc):
+#        os.makedirs(directory_perc)
+    if not os.path.exists(directory_tr):
+        os.makedirs(directory_tr)
+# 
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_tif)
+    
+    common_dates = becgis.CommonDates([complete_data['supply_total'][1], #complete_data['etb'][1], 
+                                      complete_data['dro'][1], 
+                                      complete_data['dperc'][1], #,
+                                      complete_data['tr'][1]])
+    for date in common_dates:        
+        total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
+        SUP = becgis.OpenAsArray(total_supply_tif, nan_values = True)
+        
+        dperc_tif = complete_data['dperc'][0][complete_data['dperc'][1] == date][0]
+        DPERC = becgis.OpenAsArray(dperc_tif, nan_values = True)
+        DPERC[np.isnan(DPERC)] = 0        
+        
+        dro_tif = complete_data['dro'][0][complete_data['dro'][1] == date][0]
+        DRO = becgis.OpenAsArray(dro_tif, nan_values = True)
+        DRO[np.isnan(DRO)] = 0
+        
+#        et_blue_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
+#        ETB = becgis.OpenAsArray(et_blue_tif, nan_values = True)
 
+        tr_tif = complete_data['tr'][0][complete_data['tr'][1] == date][0]
+        TR = becgis.OpenAsArray(tr_tif, nan_values = True)
+        
+#        perc_tif = complete_data['perc'][0][complete_data['perc'][1] == date][0]
+#        PERC = becgis.OpenAsArray(perc_tif, nan_values = True)
+        
+        natural_lus = ['Forests',
+                       'Shrubland',
+                       'Rainfed Crops',
+                       'Forest Plantations',
+                       'Natural Water Bodies',
+                       'Wetlands',
+                       'Natural Grasslands',
+                       'Other (Non-Manmade)']
+
+        natural_lu_codes = []
+        for lu_c in natural_lus:
+            natural_lu_codes.extend(lucs[lu_c])
+
+        for code in natural_lu_codes:
+#            PERC[LULC == code] = PERC[LULC == code] - DPERC[LULC == code]
+            TR[LULC == code] = TR[LULC == code] - DRO[LULC == code]
+#            SUP[LULC == code] = ETB[LULC == code]
+            SUP[LULC == code] = SUP[LULC == code] - DPERC[LULC == code] - DRO[LULC == code]
+            DRO[LULC == code] = 0
+            DPERC[LULC == code] = 0
+        
+        
+        outfile_sup = os.path.join(directory_sup, os.path.basename(total_supply_tif))
+        becgis.CreateGeoTiff(outfile_sup, SUP, driver, NDV, xsize, ysize, GeoT, Projection)
+        
+        outfile_dro = os.path.join(directory_dro, os.path.basename(dro_tif))
+        becgis.CreateGeoTiff(outfile_dro, DRO, driver, NDV, xsize, ysize, GeoT, Projection)
+
+        outfile_dperc = os.path.join(directory_dperc, os.path.basename(dperc_tif))
+        becgis.CreateGeoTiff(outfile_dperc, DPERC, driver, NDV, xsize, ysize, GeoT, Projection)
+        
+#        outfile_perc = os.path.join(directory_perc, os.path.basename(perc_tif))
+#        becgis.CreateGeoTiff(outfile_perc, PERC, driver, NDV, xsize, ysize, GeoT, Projection)
+
+        outfile_tr = os.path.join(directory_tr, os.path.basename(tr_tif))
+        becgis.CreateGeoTiff(outfile_tr, TR, driver, NDV, xsize, ysize, GeoT, Projection)
+
+
+    complete_data['supply_total'] = becgis.SortFiles(directory_sup, [-10,-6], month_position = [-6,-4])[0:2]
+    complete_data['dro'] = becgis.SortFiles(directory_dro, [-10,-6], month_position = [-6,-4])[0:2]
+    complete_data['dperc'] = becgis.SortFiles(directory_dperc, [-10,-6], month_position = [-6,-4])[0:2]
+#    complete_data['perc'] = becgis.SortFiles(directory_perc, [-10,-6], month_position = [-6,-4])[0:2]
+    complete_data['tr'] = becgis.SortFiles(directory_tr, [-10,-6], month_position = [-6,-4])[0:2]
+
+    return complete_data
 #def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
 #
 #    output_dir = os.path.join(output_dir, metadata['name'], "diagnosis")
