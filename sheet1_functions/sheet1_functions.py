@@ -487,9 +487,19 @@ def create_sheet1_in_outflows(sheet5_csv_folder, metadata, output_dir):
         df = pd.read_csv(f,sep=';')
         df_basin = df.loc[df.SUBBASIN == 'basin'] 
         df_inf = df_basin.loc[df_basin.VARIABLE == 'Inflow']
+        df_withdr = df_basin.loc[df_basin.VARIABLE == 'SW withdr. total']
         df_outf = df_basin.loc[df_basin.VARIABLE == 'Outflow: Total']
         writer_in.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %float(df_inf.VALUE)])
-        writer_out.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %float(df_outf.VALUE)])
+        
+        ###
+        # 
+        ###
+        val = float(df_outf.VALUE) #- float(df_withdr.VALUE)
+        ###
+        #
+        ###
+        
+        writer_out.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %val])
         total_inflow += float(df_inf.VALUE)
         
     csv_file_in.close()
@@ -752,7 +762,7 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     P[np.isnan(LULC)] = ETgreen[np.isnan(LULC)] = ETblue[np.isnan(LULC)] = np.nan
     P, ETgreen, ETblue = np.array([P, ETgreen, ETblue]) * 0.000001 * pixel_area
     
-    ET = np.sum([ETblue, ETgreen], axis = 0)
+    ET = np.nansum([ETblue, ETgreen], axis = 0)
     
     results['et_advection'], results['p_advection'], results['p_recycled'], results['dS'] = calc_wb(P, ET, q_outflow, recycling_ratio, q_in_sw = q_in_sw, q_in_gw = q_in_gw, q_in_desal = q_in_desal, q_out_sw = q_out_sw, q_out_gw = q_out_gw)
 

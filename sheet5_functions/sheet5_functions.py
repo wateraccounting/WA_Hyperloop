@@ -16,7 +16,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xml.etree.ElementTree as ET
 from scipy import interpolate
-
+import ogr
+from datetime import date
 
 
 import WA_Hyperloop.becgis as becgis
@@ -56,7 +57,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
     sb_fhs = becgis.ListFilesInFolder(metadata['masks'])
     sb_fhs = becgis.MatchProjResNDV(lu_fh, sb_fhs, sb_temp)
     
-    fnames = [sb_fh.split('\\')[-1] for sb_fh in sb_fhs]
+    fnames = [os.path.basename(sb_fh) for sb_fh in sb_fhs]
     sb_codes = [fname.split('_')[0] for fname in fnames]
     sb_names = [fname.split('_')[1] for fname in fnames]
     sb_names = [sb_name.split('.')[0] for sb_name in sb_names]
@@ -87,11 +88,14 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
 
     return_gw_sw_fhs = complete_data['return_flow_gw_sw'][0].tolist()
     return_gw_sw_fhs = becgis.mm_to_km3(lu_fh,return_gw_sw_fhs)
+
+    return_sw_sw_fhs = complete_data['return_flow_sw_sw'][0].tolist()
+    return_sw_sw_fhs = becgis.mm_to_km3(lu_fh,return_sw_sw_fhs)
     
     discharge_out_from_wp = True
-    
+    #%%
     if discharge_out_from_wp:
-        
+        #LU = becgis.OpenAsArray(metadata['lu'], nan_values = True)
         if 0 in sum(metadata['dico_in'].values(), []):
             
             ro_large, ro_large_dates = becgis.SortFiles(data['tr_folder'], [-10,-6], month_position = [-6,-4])[0:2]
@@ -103,27 +107,54 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
         added_inflow = {}
         
         discharge_sum = dict()
+#        Interbasin_transfer_withdr = dict()
+        deltaSW = dict()
+#        withdrawl_sum = dict()
         subbasins2 = list()
         
         for temp_sb, sb_code in sorted(zip(sb_fhs, sb_codes), key=lambda tup: tup[1], reverse = False):
             
-            
-            in_list = np.array(metadata['dico_in'][int(sb_code)])
+            code_num = sb_code[-2:]
+            in_list = np.array(metadata['dico_in'][int(code_num)])
             print in_list
             
             subbasins2.append(sb_name)
             RO_sb = np.array([])
+#            Interbasin_transfer_aquaculture = np.array([])
+            deltaS = np.array([])
+            W_sb = np.array([])
             
             mask = becgis.OpenAsArray(temp_sb, nan_values = True)
-            
-            for fh, dt in zip(ro_fhs, becgis.ConvertDatetimeDate(complete_data['tr'][1], out = 'datetime')):
+
+#            for fh, wfh, dt in zip(ro_fhs, withdr_fhs, becgis.ConvertDatetimeDate(complete_data['supply_sw'][1], out = 'datetime')):
+#                
+#                if dt in date_list:
+#                    RO = becgis.OpenAsArray(fh, nan_values = True)
+#                    RO[mask != 1] = np.nan
+#                    
+#                    #
+#                    W = becgis.OpenAsArray(wfh, nan_values = True)
+#                    W[mask != 1] = np.nan
+#                    
+#                    RO_sb1 = np.nansum(RO)-np.nansum(W)
+#                    #
+#                    
+#                    RO_sb = np.append(RO_sb, np.nanmax((RO_sb1 ,0)))
+#                    
+#                    if RO_sb1 < 0:
+#                        deltaS = np.append(deltaS, abs(RO_sb1))
+#                    else:
+#                        deltaS = np.append(deltaS, 0)
+                        
+            for fh, wfh, dt in zip(ro_fhs, withdr_fhs, becgis.ConvertDatetimeDate(complete_data['supply_sw'][1], out = 'datetime')):
                 
                 if dt in date_list:
                     RO = becgis.OpenAsArray(fh, nan_values = True)
                     RO[mask != 1] = np.nan
-                
+
                     RO_sb = np.append(RO_sb, np.nansum(RO))
-                
+
+                        
             print len(RO_sb)
             
             if 0 in in_list:
@@ -150,24 +181,55 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
                 RO_sb += RO_up_sb
                 added_inflow[int(sb_code)] = RO_up_sb
                 
+            for fh, wfh, dt in zip(ro_fhs, withdr_fhs, becgis.ConvertDatetimeDate(complete_data['supply_sw'][1], out = 'datetime')):
+                
+                if dt in date_list:
+                    
+                    mask = becgis.OpenAsArray(temp_sb, nan_values = True)
+                    #
+                    W = becgis.OpenAsArray(wfh, nan_values = True)
+                    W[mask != 1] = np.nan
+                    
+                    W_sb = np.append(W_sb, np.nansum(W))
+                    
+            deltaS = RO_sb - W_sb
+            
+            deltaS[deltaS >= 0] = 0
+            deltaS[deltaS < 0] = abs(deltaS[deltaS < 0])
+            
+            RO_sb = RO_sb - W_sb
+            RO_sb[deltaS > 0] = 0
+                
             for inflow_sb in in_list[in_list != 0]:
                 
                 RO_sb += discharge_sum[str(inflow_sb)]
 
             discharge_sum[str(sb_code)] = RO_sb
-
+            deltaSW[str(sb_code)] = deltaS
+            
+    if discharge_out_from_wp == False:
+        PointShapefile = metadata['OutletPoints']
+        SWpath = metadata['surfwat'] 
+        sw_time, discharge_natural, discharge_end, stat_name = discharge_at_points_new(PointShapefile, SWpath)
+        discharge_sum_end = {}
+        discharge_sum_nat = {}
+        discharge_sum = {}
+        for sb_code in ['B01','B02']:
+            discharge_sum_end[sb_code]=np.sum(np.array([discharge_end[j]/1000000000. for j in range(len(discharge_end)) if stat_name[j]==sb_code]),axis = 0)
+            discharge_sum_nat[sb_code]=np.sum(np.array([discharge_natural[j]/1000000000. for j in range(len(discharge_natural)) if stat_name[j]==sb_code]),axis = 0)
+        discharge_sum['B01'] = discharge_sum_end['B01'] + discharge_sum_nat['B02']
     #%% Splitting up the outflow
     split_discharge = discharge_split(global_data["wpl_tif"],global_data["environ_water_req"],discharge_sum,ro_fhs,fractions_fhs,sb_fhs_code_names,date_list)
 
     #%% Add arrows to template when possible (dependent on subbasin structure)
-    svg_template = sheet_5_dynamic_arrows(dico_in,dico_out,template,os.path.join(output_folder, 'temp_sheet5.svg'))
-    
+#    svg_template = sheet_5_dynamic_arrows(dico_in,dico_out,template,os.path.join(output_folder, 'temp_sheet5.svg'))
+    svg_template = template  
     #%% Write CSV file
     results = Vividict()
     dt = 0
     print "starting sheet 5 loop"
     for d in date_list:
-        print "sheet 5 {0} done".format(d)
+        print "sheet 5 {0} started".format(d)
         
         datestr1 = "%04d_%02d" %(d.year,d.month)
         datestr2 = "%04d%02d" %(d.year,d.month)
@@ -178,6 +240,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
             results["%04d" %(d.year)]["%02d" %(d.month)]['non_utilizable_outflow'][sb] = split_discharge["%04d" %(d.year)]["%02d" %(d.month)]['non_utilizable_outflow'][sb] 
             results["%04d" %(d.year)]["%02d" %(d.month)]['utilizable_outflow'][sb] = split_discharge["%04d" %(d.year)]["%02d" %(d.month)]['utilizable_outflow'][sb]
             results["%04d" %(d.year)]["%02d" %(d.month)]['non_recoverable_outflow'][sb] = split_discharge["%04d" %(d.year)]["%02d" %(d.month)]['non_recoverable_outflow'][sb]
+            results["%04d" %(d.year)]["%02d" %(d.month)]['deltaS'][sb] = deltaSW[sb][dt]
         for s in range(1,len(sb_codes)+1):
             outflow = {}
             outflow = split_discharge["%04d" %(d.year)]["%02d" %(d.month)]['total_outflow']
@@ -194,7 +257,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
         withdr_fh = withdr_fhs[np.where([datestr1 in withdr_fhs[i] for i in range(len(withdr_fhs))])[0][0]]
         
         return_gw_sw_fh = return_gw_sw_fhs[np.where([datestr1 in return_gw_sw_fhs[i] for i in range(len(return_gw_sw_fhs))])[0][0]]
-        return_sw_sw_fh = return_gw_sw_fhs[np.where([datestr1 in return_gw_sw_fhs[i] for i in range(len(return_gw_sw_fhs))])[0][0]]
+        return_sw_sw_fh = return_sw_sw_fhs[np.where([datestr1 in return_sw_sw_fhs[i] for i in range(len(return_sw_sw_fhs))])[0][0]]
         
         results["%04d" %(d.year)]["%02d" %(d.month)]['surf_runoff'] = lu_type_sum_subbasins(surf_ro_fh,lu_fh,lu_dict,sb_fhs_code_names)
         results["%04d" %(d.year)]["%02d" %(d.month)]['base_runoff'] = lu_type_sum_subbasins(base_ro_fh,lu_fh,lu_dict,sb_fhs_code_names)
@@ -202,6 +265,10 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
         results["%04d" %(d.year)]["%02d" %(d.month)]['total_runoff'] = sum_subbasins(ro_fh,sb_fhs_code_names)
         
         results["%04d" %(d.year)]["%02d" %(d.month)]['withdrawls'] = lu_type_sum_subbasins(withdr_fh,lu_fh,man_dict,sb_fhs_code_names)
+        
+#        results["%04d" %(d.year)]["%02d" %(d.month)]['withdrawls'][sb]['man'] = results["%04d" %(d.year)]["%02d" %(d.month)]['withdrawls'][sb]['man'] #- Interbasin_transfer_withdr[sb][dt]
+#        results["%04d" %(d.year)]["%02d" %(d.month)]['interbasin_transfers'][sb] = Interbasin_transfer_withdr[sb][dt]
+        
         
         results["%04d" %(d.year)]["%02d" %(d.month)]['return_gw_sw'] = sum_subbasins(return_gw_sw_fh,sb_fhs_code_names)
         results["%04d" %(d.year)]["%02d" %(d.month)]['return_sw_sw'] = sum_subbasins(return_sw_sw_fh,sb_fhs_code_names)
@@ -214,6 +281,9 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
         
         results["%04d" %(d.year)]["%02d" %(d.month)]['withdrawls']['basin']['man'] = np.nansum([results["%04d" %(d.year)]["%02d" %(d.month)]['withdrawls'][k]['man'] for  k in sb_codes])
         results["%04d" %(d.year)]["%02d" %(d.month)]['withdrawls']['basin']['natural'] = np.nansum([results["%04d" %(d.year)]["%02d" %(d.month)]['withdrawls'][k]['natural'] for k in sb_codes])            
+
+#        results["%04d" %(d.year)]["%02d" %(d.month)]['interbasin_transfers']['basin'] = np.nansum([results["%04d" %(d.year)]["%02d" %(d.month)]['interbasin_transfers'][k] for k in sb_codes])
+        results["%04d" %(d.year)]["%02d" %(d.month)]['deltaS']['basin'] = np.nansum([results["%04d" %(d.year)]["%02d" %(d.month)]['deltaS'][k] for k in sb_codes])
              
         results["%04d" %(d.year)]["%02d" %(d.month)]['return_sw_sw']['basin'] = np.nansum([results["%04d" %(d.year)]["%02d" %(d.month)]['return_sw_sw'][k] for k in sb_codes])
         results["%04d" %(d.year)]["%02d" %(d.month)]['return_gw_sw']['basin'] = np.nansum([results["%04d" %(d.year)]["%02d" %(d.month)]['return_sw_sw'][k] for k in sb_codes])            
@@ -240,12 +310,13 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
     
     fhs = hl.create_csv_yearly(os.path.join(output_folder, "sheet5_monthly"), os.path.join(output_folder, "sheet5_yearly"), year_position =[-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 2, minus_header_colums = -1)
     
-    for fh in fhs:
+    for fh, year in zip(fhs, years):
         output = fh.replace('csv', 'png')
-        create_sheet5_inception(metadata['name'], sb_codes, datestr1, 'km3', fh, output, svg_template, smart_unit = True)
+        #create_sheet5_svg(metadata['name'], sb_codes, str(year), 'km3', fh, output, svg_template) #, smart_unit = True)
+        create_sheet5_inception(metadata['name'], sb_codes, str(year), 'km3', fh, output, svg_template, smart_unit = True)
     
     shutil.rmtree(os.path.split(sb_fhs[0])[0])
-    os.remove(svg_template)
+#    os.remove(svg_template)
     
     return complete_data
 
@@ -259,14 +330,14 @@ def sheet_5_dynamic_arrows(dico_in,dico_out,test_svg,outpath):
     lower_arrow = {}
     lower_join_one_below = {}
     
-    element1 = '<path d="M 63.071871,264.267 V 271.30428 H 78.457001 V 154.10108 L 85.774098,154.10077 V 156.582 L 87.774096,157.531 89.773756,156.582 89.774174,150.12138 74.457001,150.12171 V 267.32467 L 67.07187,267.32475 67.072128,264.267 65.08986,265.203 Z" id="normal_arrow" style="fill:#73b7d1;fill-opacity:1;stroke:#fbfbfb;stroke-width:0.55299997px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccccccccccc" ns1:connector-curvature="0" ns1:label="#path8251" />'
-    element1 = 'path d="M 63.071871,264.267 V 271.30428 H 78.457001 V 154.10108 L 85.774098,154.10077 V 156.582 L 87.774096,157.531 89.773756,156.582 89.774174,150.12138 74.457001,150.12171 V 267.32467 L 67.07187,267.32475 67.072128,264.267 65.08986,265.203 Z" id="normal_arrow" style="fill:#73b7d1;fill-opacity:1;stroke:#fbfbfb;stroke-width:0.55299997px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccccccccccc" ns1:connector-curvature="0" ns1:label="#path8251" '
-    element2 = 'path d="M 63.154,271.035 H 86 V 267.455 L 66.6,267.45471 V 264.7052 L 64.872,265.528 63.154476,264.71131" id="low_bar" style="opacity:1;fill:#73b7d1;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccc" ns1:connector-curvature="0" ns1:label="#path8255" '
-    element3 = 'path d="M 62.851212,148.62795 62.853138,156.5571 64.853137,157.71202 66.852797,156.5571 66.853215,148.69463 64.85134,149.76798 Z" id="top_in" style="opacity:1;fill:#73b7d1;fill-opacity:1;stroke:#ffffff;stroke-width:0.55299997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccc" ns1:connector-curvature="0" ns1:label="#path8255" ' 
-    element4 = 'path d="M 66.872,264.29 66.873585,272.19258 64.873925,273.3475 62.873926,272.19258 62.872,264.29 64.872128,265.203 Z" id="bottom_out" style="fill:#73b7d1;fill-opacity:1;stroke:#ffffff;stroke-width:0.55299997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccc" ns1:connector-curvature="0" ns1:label="#path8274" '
-    element5 = 'path d="M 67.468749,150.121 74.457001,150.12171 89.774172,150.12138 89.773754,156.582 87.774094,157.531 85.774098,156.582 V 154.10077 L 67.468748,154.101 Z" id="top_connect_1" style="fill:#73b7d1;fill-opacity:1;stroke:#fcfcfc;stroke-width:0.55299997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccccc" ns1:connector-curvature="0" ns1:label="#path8250" />\n<ns0:path d="M 69.297345,150.399 H 65.921953 L 65.911237,153.823 H 69.279 Z" id="top_connect_2" style="fill:#73b7d1;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccc" ns1:connector-curvature="0" ns1:label="#path8262" '
-    element6 = '<rect height="3.4260001" id="rect_join_mask" style="stroke-width:0.25686634;fill:#73b7d1;fill-opacity:1" transform="translate(%.2f)" width="1.9203489" x="62.342754" y="150.399" ns1:label="#rect3787" /> '
-    element7 = '<rect height="3.4300554" id="rect_low_mask" style="fill:#73b7d1;fill-opacity:1;stroke-width:0.26458332"  transform="translate(%.2f)" width="1.4658357" x="66.373032" y="267.59995" ns1:label="#rect8273" />'
+    element1 = '<ns0:path d="M 63.071871,264.267 V 271.30428 H 78.457001 V 154.10108 L 85.774098,154.10077 V 156.582 L 87.774096,157.531 89.773756,156.582 89.774174,150.12138 74.457001,150.12171 V 267.32467 L 67.07187,267.32475 67.072128,264.267 65.08986,265.203 Z" id="normal_arrow" style="fill:#73b7d1;fill-opacity:1;stroke:#fbfbfb;stroke-width:0.55299997px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccccccccccc" ns1:connector-curvature="0" ns1:label="#path8251" />'
+    element1 = 'ns0:path d="M 63.071871,264.267 V 271.30428 H 78.457001 V 154.10108 L 85.774098,154.10077 V 156.582 L 87.774096,157.531 89.773756,156.582 89.774174,150.12138 74.457001,150.12171 V 267.32467 L 67.07187,267.32475 67.072128,264.267 65.08986,265.203 Z" id="normal_arrow" style="fill:#73b7d1;fill-opacity:1;stroke:#fbfbfb;stroke-width:0.55299997px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccccccccccc" ns1:connector-curvature="0" ns1:label="#path8251" '
+    element2 = 'ns0:path d="M 63.154,271.035 H 86 V 267.455 L 66.6,267.45471 V 264.7052 L 64.872,265.528 63.154476,264.71131" id="low_bar" style="opacity:1;fill:#73b7d1;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccc" ns1:connector-curvature="0" ns1:label="#path8255" '
+    element3 = 'ns0:path d="M 62.851212,148.62795 62.853138,156.5571 64.853137,157.71202 66.852797,156.5571 66.853215,148.69463 64.85134,149.76798 Z" id="top_in" style="opacity:1;fill:#73b7d1;fill-opacity:1;stroke:#ffffff;stroke-width:0.55299997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccc" ns1:connector-curvature="0" ns1:label="#path8255" ' 
+    element4 = 'ns0:path d="M 66.872,264.29 66.873585,272.19258 64.873925,273.3475 62.873926,272.19258 62.872,264.29 64.872128,265.203 Z" id="bottom_out" style="fill:#73b7d1;fill-opacity:1;stroke:#ffffff;stroke-width:0.55299997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccc" ns1:connector-curvature="0" ns1:label="#path8274" '
+    element5 = 'ns0:path d="M 67.468749,150.121 74.457001,150.12171 89.774172,150.12138 89.773754,156.582 87.774094,157.531 85.774098,156.582 V 154.10077 L 67.468748,154.101 Z" id="top_connect_1" style="fill:#73b7d1;fill-opacity:1;stroke:#fcfcfc;stroke-width:0.55299997;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccccccc" ns1:connector-curvature="0" ns1:label="#path8250" />\n<ns0:path d="M 69.297345,150.399 H 65.921953 L 65.911237,153.823 H 69.279 Z" id="top_connect_2" style="fill:#73b7d1;fill-opacity:1;stroke:none;stroke-width:0.26458332px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1" transform="translate(%.2f)" ns2:nodetypes="ccccc" ns1:connector-curvature="0" ns1:label="#path8262" '
+    element6 = '<ns0:rect height="3.4260001" id="rect_join_mask" style="stroke-width:0.25686634;fill:#73b7d1;fill-opacity:1" transform="translate(%.2f)" width="1.9203489" x="62.342754" y="150.399" ns1:label="#rect3787" /> '
+    element7 = '<ns0:rect height="3.4300554" id="rect_low_mask" style="fill:#73b7d1;fill-opacity:1;stroke-width:0.26458332"  transform="translate(%.2f)" width="1.4658357" x="66.373032" y="267.59995" ns1:label="#rect8273" />'
   
     expected_nb_arrows = np.sum([len(dico_out[k]) for k in dico_out.keys()]) + np.sum([0 in dico_in[k] for k in dico_in.keys()])
     
@@ -434,7 +505,7 @@ def upstream_of_lu_class(dem_fh, lu_fh, output_folder, clss = 63):
             driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
             becgis.CreateGeoTiff(upstream_fh, upstream.astype(np.int8), driver, NDV, xsize, ysize, GeoT, Projection)
     else:
-        dummy = becgis.OpenAsArray(lu_fh, nan_values = False) * 0.
+        dummy = becgis.OpenAsArray(lu_fh, nan_values = True) * 0.
         dummy = dummy.astype(np.bool)
         driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
         becgis.CreateGeoTiff(upstream_fh, dummy.astype(np.int8), driver, NDV, xsize, ysize, GeoT, Projection)
@@ -602,7 +673,7 @@ def calc_fractions(p_fhs, p_dates, output_dir, dem_fh, lu_fh):
     
     dem_reproj_fhs = becgis.MatchProjResNDV(lu_fh, np.array([dem_fh]), output_dir)
     fraction_altitude_xs = [11, 423, 11, 423]
-    # Determine the per pixel fractions needed to calculate the non-utilizable outflow.
+#     Determine the per pixel fractions needed to calculate the non-utilizable outflow.
     upstream_fh = upstream_of_lu_class(dem_fh, lu_fh, output_dir, clss = None)
     fractions_altitude_fh = os.path.join(output_dir, 'fractions_altitude.tif')
     linear_fractions(lu_fh, upstream_fh, dem_reproj_fhs[0], fractions_altitude_fh, fraction_altitude_xs, unit = 'm', quantity = 'Altitude', plot_graph = False)
@@ -702,7 +773,8 @@ def create_sheet5_inception(basin,sb_codes, period, units, data, output, templat
                   'SW withdr. total',
                   'Return Flow SW','Return Flow GW',
                   'Total Return Flow',
-                  'Interbasin Transfer','SW storage change',
+                  'Interbasin Transfer',
+                  'SW storage change',
                   'Outflow: Committed','Outflow: Non Recoverable','Outflow: Non Utilizable','Outflow: Utilizable','Outflow: Total']
     current_variables = ['Inflow',
                   'Fast Runoff: PROTECTED','Fast Runoff: UTILIZED','Fast Runoff: MODIFIED','Fast Runoff: MANAGED',
@@ -710,7 +782,8 @@ def create_sheet5_inception(basin,sb_codes, period, units, data, output, templat
                   'SW withdr. manmade','SW withdr. natural',
                   'SW withdr. total',                  
                   'Return Flow SW','Return Flow GW','Total Return Flow',
-                  'Total Runoff','Outflow: Committed','Outflow: Non Recoverable','Outflow: Non Utilizable','Outflow: Utilizable','Outflow: Total'
+                  'Total Runoff','Outflow: Committed','Outflow: Non Recoverable','Outflow: Non Utilizable','Outflow: Utilizable','Outflow: Total',
+                  'SW storage change'
                   ] #,
                   #'Outflow: Total']
 #    current_variables = line_names
@@ -819,40 +892,51 @@ def read_inflow_file(inflowtext,date_list):
     inflows = np.array(df.inflow)[date_index]
     return inflows
 
-#def discharge_at_points(PointShapefile, SWpath, date_list):
-#    if type(SWpath) == list:
-#        SW = nc.MFDataset(SWpath)
-#    else:
-#        SW = nc.Dataset(SWpath)
-#    
-#    dates = [datetime.datetime.fromordinal(x) for x in SW.variables['time'][:]]
-#    
-#    mask = np.array([(dt in date_list) for dt in dates])
-#    
-#    driver = ogr.GetDriverByName('ESRI Shapefile')
-#    dataSource = driver.Open(PointShapefile, 0)
-#    layer = dataSource.GetLayer()
-#    featureCount = layer.GetFeatureCount()
-#    discharge = []
-#    subbasins = []
-#    for pt in range(featureCount):
-#        feature = layer.GetFeature(pt)
-#        subbasins.append(feature.GetField(1))
-#        geometry = feature.GetGeometryRef()
-#        x = geometry.GetX()
-#        y = geometry.GetY()
-#        pos_x = (np.abs(SW.variables['longitude'][:]-x)).argmin()
-#        pos_y = (np.abs(SW.variables['latitude'][:]-y)).argmin()
-#        if 'Discharge_End_CR' in SW.variables.keys():
-#            discharge.append(SW.variables['Discharge_End_CR'][:,pos_y,pos_x][mask])
-#        else:
-#            discharge.append(SW.variables['Discharge_CR1'][:,pos_y,pos_x][mask])
-#            
-#    assert len(discharge[0]) == len(date_list)
-#    
-#    return discharge, subbasins
+def discharge_at_points(PointShapefile, SWpath):
+    SW = nc.Dataset(SWpath)   
+    driver = ogr.GetDriverByName('ESRI Shapefile')
+    dataSource = driver.Open(PointShapefile, 0)
+    layer = dataSource.GetLayer()
+    featureCount = layer.GetFeatureCount()
+    discharge_natural = []
+    discharge_end = []
+    stat_name = []
+    for pt in range(featureCount):
+        feature = layer.GetFeature(pt)
+        stat_name.append(feature.GetField(1))
+        geometry = feature.GetGeometryRef()
+        x = geometry.GetX()
+        y = geometry.GetY()
+        pos_x = (np.abs(SW.variables['longitude'][:]-x)).argmin()
+        pos_y = (np.abs(SW.variables['latitude'][:]-y)).argmin()
+        discharge_natural.append(SW.variables['discharge_natural'][:,pos_y,pos_x])
+        discharge_end.append(SW.variables['discharge_end'][:,pos_y,pos_x])
+        sw_time = [date.fromordinal(d) for d in SW.variables['time'][:]]
+    return sw_time, discharge_natural, discharge_end, stat_name
 
-def discharge_split(wpl_fh,ewr_fh,discharge_sum,ro_fhs,fractions_fhs,sb_fhs_code_names,date_list):
+def discharge_at_points_new(PointShapefile, SWpath):
+    SW = nc.Dataset(SWpath)    
+    driver = ogr.GetDriverByName('ESRI Shapefile')
+    dataSource = driver.Open(PointShapefile, 0)
+    layer = dataSource.GetLayer()
+    featureCount = layer.GetFeatureCount()
+    discharge_natural = []
+    discharge_end = []
+    stat_name = []
+    for pt in range(featureCount):
+        feature = layer.GetFeature(pt)
+        stat_name.append(feature.GetField(1))
+        geometry = feature.GetGeometryRef()
+        x = geometry.GetX()
+        y = geometry.GetY()
+        pos_x = (np.abs(SW.variables['longitude'][:]-x)).argmin()
+        pos_y = (np.abs(SW.variables['latitude'][:]-y)).argmin()
+        discharge_natural.append(SW.variables['discharge_natural'][:,pos_y,pos_x])
+        discharge_end.append(SW.variables['discharge_end'][:,pos_y,pos_x])
+        sw_time = [date.fromordinal(d) for d in SW.variables['time'][:]]
+    return sw_time, discharge_natural, discharge_end, stat_name
+
+def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs, sb_fhs_code_names, date_list):
     results = Vividict()  
     gray_water_fraction = {}
     ewr_percentage = {}
@@ -939,6 +1023,103 @@ def create_csv(results,output_fh):
         writer.writerow([sb,'Outflow: Non Recoverable','{0}'.format(results['non_recoverable_outflow'][sb]),'km3'])
         writer.writerow([sb,'Outflow: Non Utilizable','{0}'.format(results['non_utilizable_outflow'][sb]),'km3'])
         writer.writerow([sb,'Outflow: Utilizable','{0}'.format(results['utilizable_outflow'][sb]),'km3'])
+        #writer.writerow([sb,'Interbasin Transfer','{0}'.format(results['interbasin_transfers'][sb]),'km3'])
+        writer.writerow([sb,'SW storage change','{0}'.format(results['deltaS'][sb]),'km3'])        
         
     csv_file.close()
+    return
+
+def create_sheet5_svg(basin,sb_codes, period, units, data, output, template=False):
+    
+    df = pd.read_csv(data, sep=';')
+    if not template:
+#        path = os.path.dirname(os.path.abspath(__file__))
+#        svg_template_path = os.path.join(path, 'svg', 'sheet_7.svg')
+        svg_template_path = 'C:\Anaconda2\Lib\site-packages\wa\Sheets\svg\sheet_5_2.svg'
+    else:
+        svg_template_path = os.path.abspath(template)
+        
+    tree = ET.parse(svg_template_path)
+
+    xml_txt_box = tree.findall('''.//*[@id='basin']''')[0]
+    xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+
+    xml_txt_box = tree.findall('''.//*[@id='period']''')[0]
+    xml_txt_box.getchildren()[0].text = 'Period: ' + period
+    
+    line_id0 = [31633,30561,30569,30577,30585,30905,30913,30921,30929,
+                31873,31993,32001,32026,32189,32197,32318,32465,32609,
+               31273,31281,31289,31297,32817]
+#    line_id0 = [31633,30557,30565,30571,30579,30877,30913,30921,30929,
+ #               31869,31993,32001,32025,32189,32197,32317,32465,32609,
+#                31273,31281,31289,31297,32817]
+    
+    line_lengths = [1,4,4,4,4,4,4,4,4,1,2,2,1,2,2,1,1,1,4,4,4,4,1]
+    line_names = ['Inflow',
+                  'Fast Runoff: PROTECTED','Fast Runoff: UTILIZED','Fast Runoff: MODIFIED','Fast Runoff: MANAGED',
+                  'Slow Runoff: PROTECTED','Slow Runoff: UTILIZED','Slow Runoff: MODIFIED','Slow Runoff: MANAGED',
+                  'Total Runoff',
+                  'SW withdr. manmade','SW withdr. natural',
+                  'SW withdr. total',
+                  'Return Flow SW','Return Flow GW',
+                  'Total Return Flow',
+                  'Interbasin Transfer','SW storage change',
+                  'Outflow: Committed','Outflow: Non Recoverable','Outflow: Non Utilizable','Outflow: Utilizable','Outflow: Total']
+    current_variables = ['Inflow',
+                  'Fast Runoff: PROTECTED','Fast Runoff: UTILIZED','Fast Runoff: MODIFIED','Fast Runoff: MANAGED',
+                  'Slow Runoff: PROTECTED','Slow Runoff: UTILIZED','Slow Runoff: MODIFIED','Slow Runoff: MANAGED',
+                  'SW withdr. manmade','SW withdr. natural',
+                  'SW withdr. total',                  
+                  'Return Flow SW','Return Flow GW','Total Return Flow',
+                  'Total Runoff','Outflow: Committed','Outflow: Non Recoverable','Outflow: Non Utilizable','Outflow: Utilizable','Outflow: Total','SW storage change'
+                  ] #,
+                  #'Outflow: Total']
+#    current_variables = line_names
+    for var1 in current_variables:
+        line_nb = [i for i in range(len(line_names)) if line_names[i] == var1][0]
+        line_0 = line_id0[line_nb]
+#        print line_0
+        line_len = line_lengths[line_nb]
+        df_var = df.loc[df.VARIABLE == var1]
+        sb_order = sb_codes
+        value_sum = 0
+        for sb in range(len(sb_order)):
+            if (var1 == 'Inflow') & (sb ==0):
+                df_sb = df_var.loc[df_var.SUBBASIN == sb_order[sb]]  
+                cell_id = 'g' + str(32609 + 8*sb*line_len)
+           #     cell_id = 'tspan' + str(line_0 + 8*sb*line_len)
+                xml_txt_box = tree.findall('''.//*[@id='{0}']'''.format(cell_id))[0] 
+     #           xml_txt_box[0].text = '-'
+                xml_txt_box[0].text = '%.1f' %(df_sb.VALUE)               
+            else:
+       # for sb in range(10):
+                df_sb = df_var.loc[df_var.SUBBASIN == sb_order[sb]]  
+                cell_id = 'g' + str(line_0 + 8*sb*line_len)
+           #     cell_id = 'tspan' + str(line_0 + 8*sb*line_len)
+                xml_txt_box = tree.findall('''.//*[@id='{0}']'''.format(cell_id))[0] 
+     #           xml_txt_box[0].text = '-'
+                xml_txt_box[0].text = '%.1f' %(df_sb.VALUE)
+                value_sum += float(df_sb.VALUE)
+
+        cell_id = 'g' + str(line_0 + 8*9*line_len)
+        df_sb = df_var.loc[df_var.SUBBASIN == 'basin']
+        xml_txt_box = tree.findall('''.//*[@id='{0}']'''.format(cell_id))[0] 
+        xml_txt_box[0].text = '%.1f' %(df_sb.VALUE)           
+
+#            try:
+#                xml_txt_box[0][0].text = ''
+#                xml_txt_box[0][0][0].text = ''
+#            except:
+#                print 'fail at %s' %cell_id
+#                pass
+
+#            cell_id = 'g' + str(line_0 + 8*sb*line_len)
+
+
+    tempout_path = output.split('.')[0]+'.svg'        
+    tree.write(tempout_path)
+    out_png = output
+    #out_png = 'sheet7_%d_%02d.png' %(year,month)
+    subprocess.call(['C:\Program Files\Inkscape\inkscape.exe',tempout_path,'--export-dpi=300','--export-png='+out_png])
+    os.remove(tempout_path)
     return

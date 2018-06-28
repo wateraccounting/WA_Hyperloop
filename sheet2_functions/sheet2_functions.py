@@ -334,7 +334,8 @@ def splitET_ITE(et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_fhs, n_d
             NDMMAX = 1.00 / becgis.OpenAsArray(ndm_max_fhs[date.month], nan_values = True)
     
         # Calculate T.
-        T = np.minimum((NDM * NDMMAX),np.ones(np.shape(NDM)) * 0.95) * (ET - I)
+        #T = np.minimum((NDM * NDMMAX),np.ones(np.shape(NDM)) * 0.95) * (ET - I)
+        T = np.nanmin(((NDM * NDMMAX),np.ones(np.shape(NDM)) * 0.95), axis = 0) * (ET - I)
             
         # Create folder to store maps.
         directory_t = os.path.join(output_dir, "t")
