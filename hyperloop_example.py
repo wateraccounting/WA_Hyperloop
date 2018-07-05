@@ -24,13 +24,13 @@ basins[ID] = {
             'id':                       ID,
             
             # Give LU-map, SW-file, 
-            # shapefile with outlets of (sub-)basins (the second column should give a subbasin ID), 
             # folder with subbasin masks (name: subbasinname_ID.tif)
             'lu':                       r"D:\project_ADB\subproject_WALU\Clipped_final\Basins_Vietnam_ID_{0}.tif".format(ID),
             'full_basin_mask':          r"D:\project_ADB\subproject_Catchment_Map\Basins_exploded\Raster\ID{0}.tif".format(ID),
             'masks':                    r"D:\project_ADB\subproject_Catchment_Map\Basins_large\Subbasins_masks\ID{0}".format(ID),
             'up_basin_masks':           r"D:\project_ADB\subproject_Catchment_Map\upstream_ID3",
             'alpha_min':                None,
+    
             # Give start and enddates growingseasons, classifications to select Harvest Index and Water Content, LU-classification number
             'crops':                    [
                                         ('D:\\project_ADB\\subproject_Crop_Calendars\\consolidation\\seasons_basin03_crop35.csv', 'Rice - Rainfed', 'Cereals', '-', 35.0) ,
