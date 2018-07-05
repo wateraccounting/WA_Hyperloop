@@ -88,7 +88,7 @@ def sheet1_indicators(dir1):
             if (QSWout + QGWout)!=0:
                 reserved_outflows_fraction = reserved_outflows/(QSWout + QGWout)
             else:
-                reserved_outflows_fraction = -9999
+                reserved_outflows_fraction = np.nan
                 
         exploitable_water_fractions = np.append(exploitable_water_fractions, exploitable_water_fraction)
         storage_change_fractions = np.append(storage_change_fractions, storage_change_fraction)
