@@ -100,11 +100,12 @@ def endofmonth(dates):
 
 def calc_var_correction(metadata, complete_data, output_dir,
                         formula = 'p-et-tr+supply_total', plot = True,
-                        slope = True):
+                        slope = True, return_slope = False):
     
-    output_dir = os.path.join(output_dir)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    if plot:
+        output_dir = os.path.join(output_dir)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
     
     keys, operts = split_form(formula)
     
@@ -160,58 +161,85 @@ def calc_var_correction(metadata, complete_data, output_dir,
     
     a, b = optimization.curve_fit(func, x, grace[1][msk], p0 = p0 , bounds=(0, [1.0, 1., 12.]))                   
     
-    plt.figure(1)
-    plt.clf()
-    plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 100)
-    ax = plt.gca()
-    plt.plot(*tss['supply_total'], label = 'Total Supply', color = 'k')
-    
-    ax.fill_between(*tss['supply_total'], color = '#6bb8cc', label = 'SW Supply')
-    ax.fill_between(*calc_gwsupply(tss['supply_total'], a), color = '#c48211', label = 'GW Supply')
-                    
-    plt.scatter(*tss['supply_total'], color = 'k')
-    plt.ylim([0, np.nanmax(tss['supply_total'][1]) * 1.2])
-    plt.xlim([tss['supply_total'][0][0],tss['supply_total'][0][-1]])
-    plt.title('Surface and Groundwater Supplies')
-    plt.legend()
-    plt.savefig(os.path.join(output_dir, metadata['name'], 'SWGW_Supply'))
-    
-    plt.figure(2)
-    plt.clf()
-    plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-    ax = plt.gca()
-    scalar_array = a[0] * (np.cos((x - a[2]) * (np.pi / 6)) * 0.5 + 0.5) + (a[1] * (1 - a[0]))
-    plt.plot(tss['supply_total'][0], scalar_array, color = 'k')
-    plt.ylim([0, 1])
-    plt.xlim([tss['supply_total'][0][0],tss['supply_total'][0][-1]])
-    #plt.title('SW:GW Ratio')
-#    plt.suptitle(r'$SW = (\alpha \cdot [\cos(t \cdot \frac{2\pi}{12} - \
-#                 \theta) \cdot \frac{1}{2} + \frac{1}{2}] + \beta \cdot \
-#                 (1 - \alpha)) \cdot TS$' + '\n' + r'$\alpha = $' + 
-#                 '{0:.2f}'.format(a[0]) + r', $\beta = $' + 
-#                 '{0:.2f}'.format(a[1]) + r', $\theta = $' + 
-#                 '{0:.2f}'.format(a[2]))
-    plt.savefig(os.path.join(output_dir, metadata['name'], 'SWGW_Ratio'))
+    if plot:
+        plt.figure(1)
+        plt.clf()
+        plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 100)
+        ax = plt.gca()
+        plt.plot(*tss['supply_total'], label = 'Total Supply', color = 'k')
+        
+        ax.fill_between(*tss['supply_total'], color = '#6bb8cc', label = 'SW Supply')
+        ax.fill_between(*calc_gwsupply(tss['supply_total'], a), color = '#c48211', label = 'GW Supply')
+                        
+        plt.scatter(*tss['supply_total'], color = 'k')
+        plt.ylim([0, np.nanmax(tss['supply_total'][1]) * 1.2])
+        plt.xlim([tss['supply_total'][0][0],tss['supply_total'][0][-1]])
+        plt.title('Surface and Groundwater Supplies')
+        plt.legend()
+        plt.savefig(os.path.join(output_dir, metadata['name'], 'SWGW_Supply'))
+        
+        plt.figure(2)
+        plt.clf()
+        plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
+        ax = plt.gca()
+        scalar_array = a[0] * (np.cos((x - a[2]) * (np.pi / 6)) * 0.5 + 0.5) + (a[1] * (1 - a[0]))
+        plt.plot(tss['supply_total'][0], scalar_array, color = 'k')
+        plt.ylim([0, 1])
+        plt.xlim([tss['supply_total'][0][0],tss['supply_total'][0][-1]])
+        #plt.title('SW:GW Ratio')
+    #    plt.suptitle(r'$SW = (\alpha \cdot [\cos(t \cdot \frac{2\pi}{12} - \
+    #                 \theta) \cdot \frac{1}{2} + \frac{1}{2}] + \beta \cdot \
+    #                 (1 - \alpha)) \cdot TS$' + '\n' + r'$\alpha = $' + 
+    #                 '{0:.2f}'.format(a[0]) + r', $\beta = $' + 
+    #                 '{0:.2f}'.format(a[1]) + r', $\theta = $' + 
+    #                 '{0:.2f}'.format(a[2]))
+        plt.savefig(os.path.join(output_dir, metadata['name'], 'SWGW_Ratio'))
 
     grace = read_grace_csv(metadata['GRACE'])
     grace = interp_ts(grace, (endofmonth(tss[keys[0]][0]), -9999))
     new_dates = np.array([datetime(dt.year, dt.month, 1) for dt in grace[0]])
     grace = (new_dates, grace[1])
     
-    plt.figure(3)
-    plt.clf()
-    plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-    ax = plt.gca()
-    plt.plot(*grace, label = 'GRACE', color = 'r')
-    plt.plot(*calc_polyfit(grace, order = 1), color = 'r', linestyle = ':')
-    plt.plot(grace[0], func(x, a[0], a[1], a[2], slope = False), color = 'k', label = 'WAplus')
-    plt.plot(*calc_polyfit((grace[0], func(x, a[0], a[1], a[2], slope = False)), order = 1), color = 'k', linestyle = ':')
-    plt.legend()
-    plt.xlim([grace[0][0], grace[0][-1]])
-    plt.ylabel('dS/dt [mm/month]')    
-    plt.savefig(os.path.join(output_dir, metadata['name'], 'dSdt_Grace'))
+    if plot:
+        
+        plt.figure(3)
+        plt.clf()
+        plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
+        ax = plt.gca()
+        plt.plot(*grace, label = 'GRACE', color = 'r')
+        plt.plot(*calc_polyfit(grace, order = 1), color = 'r', linestyle = ':')
+        plt.plot(grace[0], func(x, a[0], a[1], a[2], slope = False), color = 'k', label = 'WAplus')
+        plt.plot(*calc_polyfit((grace[0], func(x, a[0], a[1], a[2], slope = False)), order = 1), color = 'k', linestyle = ':')
+        plt.legend()
+        plt.xlim([grace[0][0], grace[0][-1]])
+        plt.ylabel('dS/dt [mm/month]')    
+        plt.savefig(os.path.join(output_dir, metadata['name'], 'dSdt_Grace'))
+        
+    if return_slope:
+        ts = (grace[0], func(x, a[0], a[1], a[2], slope = False))
+        dts_ordinal = toord(ts)
+        p_WA = np.polyfit(dts_ordinal[~np.isnan(ts[1])],
+                                   ts[1][~np.isnan(ts[1])], 1)
+        
+        dt = dts_ordinal[-1] - dts_ordinal[0]
+        
+        print "dS/dt = {0} mm / day".format(p_WA[0])
+        print "dS = dS/dt * {0} = {1}".format(dt, p_WA[0]*dt)
+        
+        ts = grace
+        dts_ordinal = toord(ts)
+        p_GRACE = np.polyfit(dts_ordinal[~np.isnan(ts[1])],
+                                   ts[1][~np.isnan(ts[1])], 1)
+        
+        print "dS/dt_GRACE = {0} mm / day".format(p_GRACE[0]) 
+        print "dS = dS/dt * {0} = {1}".format(dt, p_GRACE[0]*dt)
+        
+        startend = (grace[0][0], grace[0][-1])
+        
+        return p_WA, p_GRACE, dt, startend
     
-    return a, x0
+    else:
+        return a, x0
 
 
 def calc_gwsupply(total_supply, params):

@@ -591,14 +591,20 @@ def sort_data_short(output_dir, metadata):
     
     return complete_data
 
-def sort_data(data, metadata, global_data, output_dir):
+def sort_data(data, metadata, global_data, output_dir, scale = None):
     output_dir = os.path.join(output_dir, metadata['name'])
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
     complete_data = dict()
     for key in data.keys():
-        complete_data = sort_var(data, metadata, global_data, output_dir, key, complete_data)
+        if scale != None:
+            if key == 'p_folder':
+                complete_data = sort_var(data, metadata, global_data, output_dir, key, complete_data, scale = scale)
+            else:
+                complete_data = sort_var(data, metadata, global_data, output_dir, key, complete_data)
+        else:
+            complete_data = sort_var(data, metadata, global_data, output_dir, key, complete_data)
 
     #complete_data['fractions'] = sh5.calc_fractions(complete_data['p'][0], complete_data['p'][1], os.path.join(output_dir, 'data', 'fractions'), global_data['dem'], metadata['lu'])
 #
@@ -649,13 +655,13 @@ def WP_NetCDF_to_Rasters(input_nc, ras_variable, root_dir,
     return out_dir
 
 
-def sort_var(data, metadata, global_data, output_dir, key, complete_data, time_var = 'time_yyyymm'):
+def sort_var(data, metadata, global_data, output_dir, key, complete_data, time_var = 'time_yyyymm', scale = None):
     if time_var == 'time_yyyymm':
         files, dates = becgis.SortFiles(data[key], [-10,-6], month_position = [-6,-4])[0:2]
     else:
         files, dates = becgis.SortFiles(data[key], [-8,-4])[0:2]
     var_name = key.split('_folder')[0]
-    files = becgis.MatchProjResNDV(metadata['lu'], files, os.path.join(output_dir, 'data', var_name), resample = 'near', dtype = 'float32')
+    files = becgis.MatchProjResNDV(metadata['lu'], files, os.path.join(output_dir, 'data', var_name), resample = 'near', dtype = 'float32', scale = scale)
     complete_data[var_name] = (files, dates)
     return complete_data
 
