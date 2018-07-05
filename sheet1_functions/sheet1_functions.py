@@ -756,7 +756,7 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     
     pixel_area = becgis.MapPixelAreakm(lu_fh)
 
-    gray_water_fraction = becgis.calc_basinmean(entries['WPL'], lu_fh)
+    gray_water_fraction = np.min([0.95, becgis.calc_basinmean(entries['WPL'], lu_fh)])
     ewr_percentage = becgis.calc_basinmean(entries['EWR'], lu_fh)
     
     P[np.isnan(LULC)] = ETgreen[np.isnan(LULC)] = ETblue[np.isnan(LULC)] = np.nan

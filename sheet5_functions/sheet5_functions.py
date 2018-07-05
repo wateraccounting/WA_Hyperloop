@@ -107,9 +107,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
         added_inflow = {}
         
         discharge_sum = dict()
-#        Interbasin_transfer_withdr = dict()
         deltaSW = dict()
-#        withdrawl_sum = dict()
         subbasins2 = list()
         
         for temp_sb, sb_code in sorted(zip(sb_fhs, sb_codes), key=lambda tup: tup[1], reverse = False):
@@ -120,32 +118,11 @@ def create_sheet5(complete_data, metadata, output_dir, global_data, data):
             
             subbasins2.append(sb_name)
             RO_sb = np.array([])
-#            Interbasin_transfer_aquaculture = np.array([])
             deltaS = np.array([])
             W_sb = np.array([])
             
             mask = becgis.OpenAsArray(temp_sb, nan_values = True)
-
-#            for fh, wfh, dt in zip(ro_fhs, withdr_fhs, becgis.ConvertDatetimeDate(complete_data['supply_sw'][1], out = 'datetime')):
-#                
-#                if dt in date_list:
-#                    RO = becgis.OpenAsArray(fh, nan_values = True)
-#                    RO[mask != 1] = np.nan
-#                    
-#                    #
-#                    W = becgis.OpenAsArray(wfh, nan_values = True)
-#                    W[mask != 1] = np.nan
-#                    
-#                    RO_sb1 = np.nansum(RO)-np.nansum(W)
-#                    #
-#                    
-#                    RO_sb = np.append(RO_sb, np.nanmax((RO_sb1 ,0)))
-#                    
-#                    if RO_sb1 < 0:
-#                        deltaS = np.append(deltaS, abs(RO_sb1))
-#                    else:
-#                        deltaS = np.append(deltaS, 0)
-                        
+            
             for fh, wfh, dt in zip(ro_fhs, withdr_fhs, becgis.ConvertDatetimeDate(complete_data['supply_sw'][1], out = 'datetime')):
                 
                 if dt in date_list:
@@ -949,7 +926,7 @@ def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs, sb_fhs
     for i in range(len(sb_fhs)):
         sb_fh = sb_fhs[i]
         sb_code = sb_codes[i]
-        gray_water_fraction[sb_code] = becgis.calc_basinmean(wpl_fh, sb_fh)
+        gray_water_fraction[sb_code] = np.min([0.95, becgis.calc_basinmean(wpl_fh, sb_fh)]) #becgis.calc_basinmean(wpl_fh, sb_fh) 
         ewr_percentage[sb_code] = becgis.calc_basinmean(ewr_fh, sb_fh)        
     t = 0
     for d in date_list:
