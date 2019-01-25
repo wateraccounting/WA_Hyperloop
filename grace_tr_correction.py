@@ -100,7 +100,7 @@ def endofmonth(dates):
 
 def calc_var_correction(metadata, complete_data, output_dir,
                         formula = 'p-et-tr+supply_total', plot = True,
-                        slope = True, return_slope = False):
+                        slope = False, return_slope = False):
     
     if plot:
         output_dir = os.path.join(output_dir)
@@ -119,7 +119,7 @@ def calc_var_correction(metadata, complete_data, output_dir,
     grace = (new_dates, grace[1])
     
     if slope:
-        grace = (grace[0], grace[1] - np.mean(grace[1]))
+        grace = (grace[0], grace[1] - np.nanmean(grace[1]))
     
     msk = ~np.isnan(grace[1])
 

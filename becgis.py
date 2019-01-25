@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import collections
 import tempfile
 from scipy import ndimage
+import calendar
 
 from WA_Hyperloop.paths import get_path
 
@@ -61,6 +62,7 @@ def calc_basinmean(perc_fh, lu_fh):
     percentage = np.nanmean(EWR)
     shutil.rmtree(output_folder)
     return percentage
+
 
 def set_classes_to_value(fh, lu_fh, classes, value = 0):
     """
@@ -649,7 +651,7 @@ def MatchProjResNDV(source_file, target_fhs, output_dir, resample = 'near', dtyp
     ----------
     source_file : str
         The file to match the projection, resolution and ndv with.
-    target_fhs : ndarray
+    target_fhs : list
         The files to be reprojected.
     output_dir : str
         Folder to store the output.
@@ -800,7 +802,7 @@ def GetMonthLabels():
     month_labels = {1:'01',2:'02',3:'03',4:'04',5:'05',6:'06',7:'07',8:'08',9:'09',10:'10',11:'11',12:'12'}
     return month_labels
     
-def CreateGeoTiff(fh, Array, driver, NDV, xsize, ysize, GeoT, Projection, explicit = True):
+def CreateGeoTiff(fh, Array, driver, NDV, xsize, ysize, GeoT, Projection, explicit = True, compress = None):
     """
     Creates a geotiff from a numpy array.
     
@@ -826,7 +828,10 @@ def CreateGeoTiff(fh, Array, driver, NDV, xsize, ysize, GeoT, Projection, explic
     datatypes = {"uint8": 1, "int8": 1, "uint16": 2, "int16": 3, "Int16": 3, "uint32": 4,
     "int32": 5, "float32": 6, "float64": 7, "complex64": 10, "complex128": 11,
     "Int32": 5, "Float32": 6, "Float64": 7, "Complex64": 10, "Complex128": 11,}
-    DataSet = driver.Create(fh,xsize,ysize,1,datatypes[Array.dtype.name])
+    if compress != None:
+        DataSet = driver.Create(fh,xsize,ysize,1,datatypes[Array.dtype.name], ['COMPRESS={0}'.format(compress)])
+    else:
+        DataSet = driver.Create(fh,xsize,ysize,1,datatypes[Array.dtype.name])
     if NDV is None:
         NDV = -9999
     if explicit:
@@ -894,6 +899,8 @@ def AssertProjResNDV(list_of_filehandle_lists, check_NDV = True):
     """
     longlist = np.array([])
     for fh_list in list_of_filehandle_lists:
+        if type(fh_list) == list:
+            longlist = np.append(longlist, np.array(fh_list))
         if type(fh_list) is np.ndarray:
             longlist = np.append(longlist, fh_list)
         if type(fh_list) is str:
@@ -1186,4 +1193,83 @@ def ZeroesDictionary(dictionary):
     null_dictionary = dict()
     for key in dictionary.keys():
         null_dictionary[key] = 0.0
-    return null_dictionary     
+    return null_dictionary
+
+def Xdaily_to_monthly(files, dates, out_path, name_out):
+    """
+    e.g.
+    out_path = r'C:\Users\bec\Desktop\test'
+    name_out = r'LAI_{0}{1}.tif'   
+    """
+    
+    # Make sure the fiels and dates are sequential
+    files = np.array([x for _,x in sorted(zip(dates, files))])
+    dates = np.array(sorted(dates))
+    
+    # Check if out_path exists
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    
+    # Check if all maps have the same projection
+    AssertProjResNDV([files])
+    
+    # Get geo-info
+    geo_info = GetGeoInfo(files[0])
+    
+    # Create tuples with date couples
+    date_couples = np.array(zip(dates[0:-1], dates[1:]))
+    
+    # Loop over years and months
+    for yyyy, mm in np.unique([(date.year, date.month) for date in dates], axis = 0):
+        
+        # Check which maps are relevant for current step
+        relevant = [np.any([date1.month == mm and date1.year == yyyy, 
+                            date2.month == mm and date2.year == yyyy]) for date1, date2 in date_couples]
+        
+        # Create new empty array
+        MONTHLY = np.zeros((geo_info[3], geo_info[2]), dtype = np.float32)
+        
+        # Calculate length of month
+        days_in_month = calendar.monthrange(yyyy, mm)[1]
+        
+        # Loop over relevant dates
+        for date1, date2 in date_couples[relevant]:
+            
+            print date1, date2
+            
+            # Open relevant maps
+            XDAILY1 = OpenAsArray(files[dates == date1][0], nan_values = True)
+            XDAILY2 = OpenAsArray(files[dates == date2][0], nan_values = True)
+            
+            # Correct dateranges at month edges
+            if np.any([date1.month != mm, date1.year != yyyy]):
+                
+                date1 = datetime.date(yyyy, mm, 01)
+                
+            if np.any([date2.month != mm, date2.year != yyyy]):
+                
+                date2 = datetime.date(yyyy, mm, days_in_month) + datetime.timedelta(days=1)
+            
+            # Calculate how many relevant days there are in the current substep
+            relevant_days = (date2 - date1).days
+            
+            # Add values to map
+            MONTHLY += np.sum([XDAILY1, XDAILY2], axis = 0) * 0.5 * relevant_days
+            
+            print date1, date2
+            print relevant_days
+        
+        # Calculate monthly average
+        MONTHLY /= days_in_month
+        
+        # Create output filehandle
+        out_fh = os.path.join(out_path, name_out.format(yyyy, str(mm).zfill(2)))
+        
+        # Save array as geotif
+        try:
+            CreateGeoTiff(out_fh, MONTHLY, *geo_info, compress = "LZW")
+        except:
+            CreateGeoTiff(out_fh, MONTHLY, *geo_info)
+        
+        print "{0} {1} Created".format(yyyy, mm)
+        
