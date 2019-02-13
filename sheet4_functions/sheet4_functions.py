@@ -22,8 +22,31 @@ import WA_Hyperloop.becgis as becgis
 from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.get_dictionaries as gd
 from WA_Hyperloop.paths import get_path
-from WA_Hyperloop.grace_tr_correction import correct_var, correct_var_test
+from WA_Hyperloop.grace_tr_correction import correct_var
+from WA_Hyperloop.sup_is_etb_in_natural_lu import bf_reduction_with_gwsup
 
+def sw_ret_wpix(non_consumed_dsro, non_consumed_dperc, lu, ouput_dir_ret_frac):
+    DSRO = becgis.OpenAsArray(non_consumed_dsro, nan_values = True)
+    DPERC = becgis.OpenAsArray(non_consumed_dperc, nan_values = True)
+    DSRO[np.isnan(DSRO)] = 0
+    DPERC[np.isnan(DPERC)] = 0
+    LU = becgis.OpenAsArray(lu, nan_values = True)
+    DTOT = DSRO + DPERC
+    SWRETFRAC = LU * 0
+    SWRETFRAC[DTOT > 0] = (DSRO/(DTOT))[DTOT > 0]
+    
+    geo_info = becgis.GetGeoInfo(non_consumed_dsro)
+    fh = os.path.join(ouput_dir_ret_frac, 'sw_return_fraction' + os.path.basename(non_consumed_dsro)[-13:])
+    becgis.CreateGeoTiff(fh, SWRETFRAC, *geo_info)
+    return fh    
+
+def multiply_raster_by_c(sw_supply_fraction_tif, alpha):
+    geo_info = becgis.GetGeoInfo(sw_supply_fraction_tif)
+    SW_FRAC = becgis.OpenAsArray(sw_supply_fraction_tif, nan_values = True)
+    SW_FRAC = SW_FRAC * alpha
+    becgis.CreateGeoTiff(sw_supply_fraction_tif, SW_FRAC, *geo_info)
+    return
+    
 def calc_difference(ds1, ds2, output_folder):
     
     if not os.path.exists(output_folder):
@@ -66,10 +89,9 @@ def calc_recharge(perc, dperc):
     output_folder2.insert(1, os.path.sep)
     output_folder2 = os.path.join(*output_folder2)
     
-    rchrg = becgis.AverageSeries(diff[0], diff[1], 3, 
+    rchrg = becgis.AverageSeries(diff[0], diff[1], 1, 
                                  output_folder2, para_name = 'rchrg')
-    
-    shutil.rmtree(output_folder1)
+#    shutil.rmtree(output_folder1)
     
     return rchrg
 
@@ -99,74 +121,6 @@ def create_gw_supply(metadata, complete_data, output_dir):
     meta = becgis.SortFiles(folder, [-11,-7], month_position = [-6,-4])[0:2]
     
     return meta
-
-
-def backcalc_alpha(sw_supply_tif, total_supply_tif, output_dir):
-    
-    SW = becgis.OpenAsArray(sw_supply_tif, nan_values = True)
-    TOT = becgis.OpenAsArray(sw_supply_tif, nan_values = True)
-    
-    alpha = np.median(SW[~np.isnan(SW)] / TOT[~np.isnan(TOT)])
-    
-    print "alpha = {0}".format(alpha)
-    
-    ALPHA = np.ones(np.shape(SW)) * alpha
-    
-    ginfo = becgis.GetGeoInfo(sw_supply_tif)
-    
-    fh = os.path.join(output_dir, "alpha.tif")
-    becgis.CreateGeoTiff(fh, ALPHA, *ginfo)
-    
-    return fh
-
-
-def split_flows_alpha(flow_fh, alpha, output_folder, date, flow_names = ['sw','gw']):
-    """
-    Split a map with watersupplies into water supplied from groundwater and from
-    surfacewater. Also calculates the recoverable flow and splits the flow into
-    groun and surfacewater.
-    
-
-    output_folder : str
-        Folder to save results. Four maps are stored, 'recoverable_gw.tif',
-        'recoverable_sw.tif', 'supply_sw.tif' and 'supply_gw.tif'.
-    date : object or str
-        Datetime.date object corresponding to the other inputs.
-        
-    Returns
-    -------
-    rec_gw_fh : str
-        Filehandle pointing to the recoverable groundwater map.
-    rec_sw_fh : str
-        Filehandle pointing to the recoverable surfacewater map.     
-    """
-    output_folder_one = os.path.join(output_folder, flow_names[0])
-    if not os.path.exists(output_folder_one):
-        os.makedirs(output_folder_one)
-    
-    output_folder_two = os.path.join(output_folder, flow_names[1])
-    if not os.path.exists(output_folder_two):
-        os.makedirs(output_folder_two)
-        
-    if isinstance(date, datetime.date):
-        flow_one_fh = os.path.join(output_folder_one, '{0}_{1}_{2}.tif'.format(flow_names[0],date.year,str(date.month).zfill(2)))
-        flow_two_fh = os.path.join(output_folder_two, '{0}_{1}_{2}.tif'.format(flow_names[1],date.year,str(date.month).zfill(2)))
-    else:
-        flow_one_fh = os.path.join(output_folder_one, '{0}_{1}.tif'.format(flow_names[0],date))
-        flow_two_fh = os.path.join(output_folder_two, '{0}_{1}.tif'.format(flow_names[1],date))        
-    
-    FLOW = becgis.OpenAsArray(flow_fh, nan_values = True)
-    
-    FRACTION = alpha
-    
-    FLOW_one = FRACTION * FLOW
-    FLOW_two = (1. - FRACTION) * FLOW
-    
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(flow_fh)
-    becgis.CreateGeoTiff(flow_one_fh, FLOW_one, driver, NDV, xsize, ysize, GeoT, Projection)
-    becgis.CreateGeoTiff(flow_two_fh, FLOW_two, driver, NDV, xsize, ysize, GeoT, Projection)
-    
-    return flow_one_fh, flow_two_fh
    
     
 def create_sheet4_6(complete_data, metadata, output_dir, global_data):
@@ -182,27 +136,20 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     output_dir3 = os.path.join(output_dir, 'sheet6')
     if not os.path.exists(output_dir3):
         os.makedirs(output_dir3)
-    
-    if not np.all(['etb' in complete_data.keys(), 'etg' in complete_data.keys()]): 
-        gb_cats, mvg_avg_len = gd.get_bluegreen_classes(version = '1.0')
-        etblue_files, etblue_dates, etgreen_files, etgreen_dates = splitET_BlueGreen(complete_data['et'][0], complete_data['et'][1], complete_data['etref'][0], complete_data['etref'][1], complete_data['p'][0], complete_data['p'][1], metadata['lu'], os.path.join(output_dir, 'data'), 
-                      moving_avg_length = mvg_avg_len, green_blue_categories = gb_cats, plot_graph = False, 
-                      method = 'tail', scale = 1.1, basin = metadata['name'])
-                          
-        complete_data['etb'] = (etblue_files, etblue_dates)
-        complete_data['etg'] = (etgreen_files, etgreen_dates)
+        
+    lucs = gd.get_sheet4_6_classes() 
+    sw_supply_fractions = gd.get_sheet4_6_fractions()
 
-    lucs = gd.get_sheet4_6_classes()
-    consumed_fractions, sw_supply_fractions, sw_return_fractions = gd.get_sheet4_6_fractions()
+    lu_based_supply_split = metadata['lu_based_supply_split'] 
+    grace_supply_split = metadata['grace_supply_split']
 
     equiped_sw_irrigation_tif = global_data["equiped_sw_irrigation"]
     wpl_tif = global_data["wpl_tif"]
-    population_tif = global_data["population_tif"]
+    
 
     non_recov_fraction_tif = non_recoverable_fractions(metadata['lu'], wpl_tif, lucs, output_dir2)
-    sw_return_fraction_tif = fractions(metadata['lu'], sw_return_fractions, lucs, output_dir2, filename = 'sw_return_fraction.tif')
 
-    return_flow_sw_sw = return_flow_sw_gw = return_flow_gw_sw = return_flow_gw_gw = np.array([])
+    supply_swa = return_flow_sw_sw = return_flow_sw_gw = return_flow_gw_sw = return_flow_gw_gw = np.array([])
 
     complete_data['recharge'] = calc_recharge(complete_data['perc'], complete_data['dperc'])
 
@@ -215,181 +162,70 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
 
     other_consumed_tif = None
     non_conventional_et_tif = None
-
-    sw_supply_fraction_tif = fractions(metadata['lu'], sw_supply_fractions, lucs, output_dir2, filename = 'sw_supply_fraction.tif')
-    sw_supply_fraction_tif = update_irrigation_fractions(metadata['lu'], sw_supply_fraction_tif, lucs, equiped_sw_irrigation_tif)
-    
-    
-    print 'max supply frac:', np.nanmax(becgis.OpenAsArray(sw_supply_fraction_tif, nan_values = True))
-    
-#    for date in common_dates:
-#        
-#        conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
-#
-#        ###
-#        # Calculate supply and split into GW and SW supply
-#        ###
-##        if 'supply' in complete_data:
-#        total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
-##        else:
-##            total_supply_tif = total_supply(conventional_et_tif, other_consumed_tif, metadata['lu'], lucs, consumed_fractions, output_dir, date)
-#
-#        supply_sw_tif, supply_gw_tif = split_flows(total_supply_tif, sw_supply_fraction_tif, os.path.join(output_dir, 'data'), date, flow_names = ['supply_sw','supply_gw'])
-#
-#        os.remove(supply_gw_tif)
-#        
-#        supply_sw = np.append(supply_sw, supply_sw_tif)
-#        
-#    complete_data['supply_sw'] = (supply_sw, common_dates)
-    ###
-    # Correct outflow to match with GRACE storage
-    ###
-    a, complete_data['supply_sw'] = correct_var_test(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_total', new_var = 'supply_sw', slope = True)
-    print '-----> alpha = {0}'.format(a[0])
-    complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
-
-#    a = correct_var(metadata, complete_data, os.path.split(output_dir)[0], 'p-et-tr+supply_sw', slope = True)
-#    
-#    print metadata['name']
-#    print '-----> alpha = {0}'.format(a[0])
-#    
-#    complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
-
-    #a = [r"C:\Users\bec\Desktop\bla.tif"]
-    
-    #sw_supply_fraction_tif = backcalc_alpha(complete_data['supply_sw'][0][0], complete_data['supply_total'][0][0], output_dir)
-    
-    #sw_supply_fhs = becgis.mm_to_km3(metadata['lu'], complete_data['supply_sw'][0])
-    
-#    LULC = becgis.OpenAsArray(metadata['lu'])
-#    geo_info = becgis.GetGeoInfo(metadata['lu'])
-    
-    for date in common_dates:
+    if lu_based_supply_split:
+        sw_supply_fraction_tif = fractions(metadata['lu'], sw_supply_fractions, lucs, output_dir2, filename = 'sw_supply_fraction.tif')
+        sw_supply_fraction_tif = update_irrigation_fractions(metadata['lu'], sw_supply_fraction_tif, lucs, equiped_sw_irrigation_tif)
+        print 'max supply frac:', np.nanmax(becgis.OpenAsArray(sw_supply_fraction_tif, nan_values = True))
+    else:
+        driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(metadata['lu'])
+        mask = (~np.isnan(becgis.OpenAsArray(metadata['lu'], nan_values=True))).astype(int)
+        mask[mask==0] = -9999
+        sw_supply_fraction_tif = os.path.join(output_dir2, 'sw_supply_fraction.tif')
+        becgis.CreateGeoTiff(sw_supply_fraction_tif, mask, driver, NDV, xsize, ysize, GeoT, Projection)
         
-#        print date
-#        
-#        # Select data
-#        sw_supply = complete_data['supply_sw'][0][complete_data['supply_sw'][1] == date][0]
-#        gw_supply = complete_data['supply_gw'][0][complete_data['supply_gw'][1] == date][0]
-#        
-##        gw_accums = accumulate_per_categories(metadata['lu'], gw_supply, lucs, scale = 1e-6)
-##        sw_accums = accumulate_per_categories(metadata['lu'], sw_supply, lucs, scale = 1e-6)
-##       
-#        sw_classes = list()
-#        for subclass in ['Natural Water Bodies', 'Wetlands', 'Natural Grasslands', 'Other (Non-Manmade)']:
-#            sw_classes += lucs[subclass]
-#
-#        gw_classes = list()
-#        for subclass in ['Forests','Rainfed Crops','Shrubland','Forest Plantations']:
-#            gw_classes += lucs[subclass]
+    for date in common_dates:
+        conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
+        ###
+        # Calculate supply and split into GW and SW supply
+        ###
+        total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
+        if lu_based_supply_split:
+            supply_sw_tif, supply_gw_tif = split_flows(total_supply_tif, sw_supply_fraction_tif, 
+                                                       os.path.join(output_dir, 'data'), date, 
+                                                       flow_names = ['supply_swa','supply_gw'])
+            os.remove(supply_gw_tif)
+        
+            supply_swa = np.append(supply_swa, supply_sw_tif)
+        else:
+            supply_swa = np.append(supply_swa, total_supply_tif)
+        complete_data['supply_swa'] = (supply_swa, common_dates)
+    
+    # Correct sw/gw split to match with GRACE storage
+    if grace_supply_split: 
+        a, complete_data['supply_sw'] = correct_var(metadata, complete_data,
+                        os.path.split(output_dir)[0], 'p-et-tr+supply_swa',
+                        slope = True, new_var = 'supply_sw')
 
-#        nl_classes = list()
-#        for subclass in ['Forests','Rainfed Crops','Shrubland','Forest Plantations','Natural Water Bodies','Wetlands','Natural Grasslands','Other (Non-Manmade)']:
-#            nl_classes += lucs[subclass]
-#            
-#        man_classes = list()
-#        for subclass in ['Irrigated crops', 'Managed water bodies', 'Aquaculture', 'Residential', 'Greenhouses', 'Other']:
-#            man_classes += lucs[subclass]       
-#
-#        # Adjust SW_Supply NL
-#        areas = becgis.MapPixelAreakm(metadata['lu'])
-#        scale = 1e-6
-#        
-#        SW = becgis.OpenAsArray(sw_supply, nan_values = True)
-#        GW = becgis.OpenAsArray(gw_supply, nan_values = True)
-#        
-#        TOT = SW + GW
-#        
-##        mask_sw = np.logical_or.reduce([LULC == value for value in sw_classes])
-##        mask_nl = np.logical_or.reduce([LULC == value for value in nl_classes])
-        #mask_gw = np.logical_or.reduce([LULC == value for value in gw_classes])
-#        mask_man = np.logical_or.reduce([LULC == value for value in man_classes])
-#        
-##        max_sw_supply = np.nansum(TOT[mask_sw] * scale * areas[mask_sw])
-##        
-##        current_sw_supply = np.nansum(SW[mask_nl] * scale * areas[mask_nl])
-##        current_gw_supply = np.nansum(GW[mask_nl] * scale * areas[mask_nl])
-##        current_supply = np.nansum(TOT[mask_nl] * scale * areas[mask_nl])
-##        dsw_supply = current_sw_supply - max_sw_supply
-#        
-#        #if np.nansum(SW[mask_gw] * scale * areas[mask_gw]) <= np.nansum(GW[mask_man] * scale *areas[mask_man]):
-#        
-        #alpha = np.ones(np.shape(LULC)) * a[0]
-            
-        #alpha[mask_gw] = 0.0
-        #becgis.CreateGeoTiff(r"C:\Users\bec\Desktop\bla.tif", alpha, *geo_info)
-        #a = [r"C:\Users\bec\Desktop\bla.tif"]
-#        
-#        gw_MM_decrease = np.nansum(SW[mask_gw] * scale * areas[mask_gw])
-#        current_MM_gw = np.nansum(GW[mask_man] * scale * areas[mask_man])
-#        current_NLgw_gw = np.nansum(GW[mask_gw] * scale * areas[mask_gw])
-#        
-#        if gw_MM_decrease >= current_MM_gw:
-#            gw_MM_decrease = current_MM_gw
-#            gw_NLgw_increase = current_MM_gw
-#        else:
-#            gw_MM_decrease = gw_MM_decrease
-#            gw_NLgw_increase = gw_MM_decrease            
-#
-#        beta = (current_NLgw_gw + gw_NLgw_increase) / current_NLgw_gw
-#        
-#        GW[mask_gw] *= beta
-#        SW[mask_gw] = TOT[mask_gw] - GW[mask_gw]
-#        
-#        beta = (current_MM_gw - gw_MM_decrease) / current_MM_gw
-#        
-#        GW[mask_man] *= beta
-#        SW[mask_man] = TOT[mask_man] - GW[mask_man]
-#        
-#        becgis.CreateGeoTiff(sw_supply, SW, *geo_info)
-#        becgis.CreateGeoTiff(gw_supply, GW, *geo_info)
-#        
-#        total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
-#        
-#        becgis.CreateGeoTiff(total_supply_tif, GW + SW, *geo_info)
-#        supply_sw_tif = sw_supply
-#        supply_gw_tif = gw_supply
-#        conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]        
-#        
-    #for date in common_dates[0:1]:
+        print '-----> alpha = {0}'.format(a[0])
 
+        multiply_raster_by_c(sw_supply_fraction_tif, a[0]) #claire - update sw_fraction_tif
+
+
+    else: 
+        complete_data['supply_sw'] = complete_data['supply_swa']
+        
+    complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
+    
+#    complete_data = bf_reduction_with_gwsup(metadata, complete_data)
+    
+    for date in common_dates:    
         total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
         supply_sw_tif = complete_data['supply_sw'][0][complete_data['supply_sw'][1] == date][0]
         supply_gw_tif = complete_data['supply_gw'][0][complete_data['supply_gw'][1] == date][0]
         conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
 
-###### CLAIRE _____ --> assures that: dperc + dro == non_consumed
-        
-#        ###
-#        # Calculate non-consumed supplies per source
-#        ###
-#        #non_consumed_tif = calc_delta_flow(total_supply_tif, conventional_et_tif, output_dir, date)
-#        non_consumed_dsro = complete_data['dro'][0][complete_data['dro'][1] == date][0]
-#        non_consumed_dperc = complete_data['dperc'][0][complete_data['dperc'][1] == date][0]
-#        non_consumed_tif = os.path.join(output_dir,'NONCONSUMED','NONCONSUMED_%d_%02d.tif' %(date.year,date.month))
-#        becgis.Ysum([non_consumed_dsro, non_consumed_dperc], non_consumed_tif)
-#        non_consumed_sw_tif, non_consumed_gw_tif = split_flows_alpha(non_consumed_tif, a[0], output_dir, date, flow_names = ['NONCONSUMEDsw', 'NONCONSUMEDgw'])
-#        
-#        ###
-#        # Calculate (non-)recoverable return flows per source
-#        ###
-#        non_recov_tif, recov_tif = split_flows(non_consumed_tif, non_recov_fraction_tif, output_dir, date, flow_names = ['NONRECOV', 'RECOV'])
-#        recov_sw_tif, recov_gw_tif = split_flows_alpha(recov_tif, a[0], output_dir, date, flow_names = ['RECOVsw', 'RECOVgw'])
-#        non_recov_sw_tif, non_recov_gw_tif = split_flows_alpha(non_recov_tif, a[0], output_dir, date, flow_names = ['NONRECOVsw', 'NONRECOVgw'])
-#
-#        ###
-#        # Caculate return flows to gw and sw
-#        ###
-#        return_flow_sw_sw_tif, return_flow_gw_sw_tif = split_flows_alpha(non_consumed_dsro, a[0], os.path.join(output_dir, 'data'), date, flow_names = ['return_swsw', 'return_gwsw'])
-#        return_flow_sw_gw_tif, return_flow_gw_gw_tif = split_flows_alpha(non_consumed_dperc, a[0], os.path.join(output_dir, 'data'), date, flow_names = ['return_swgw', 'return_gwgw'])
+        non_consumed_dsro = complete_data['dro'][0][complete_data['dro'][1] == date][0] 
+        non_consumed_dperc = complete_data['dperc'][0][complete_data['dperc'][1] == date][0]     
+        ouput_dir_ret_frac = os.path.join(output_dir,'data','return_fractions')
+        if not os.path.exists(ouput_dir_ret_frac):
+            os.makedirs(ouput_dir_ret_frac)
+        sw_return_fraction_tif = sw_ret_wpix(non_consumed_dsro, non_consumed_dperc, metadata['lu'], ouput_dir_ret_frac)
 
-###### /CLAIRE
-        
         ###
         # Calculate non-consumed supplies per source
         ###
         non_consumed_tif = calc_delta_flow(total_supply_tif, conventional_et_tif, output_dir, date)
-        non_consumed_sw_tif, non_consumed_gw_tif = split_flows(non_consumed_tif, a[0], output_dir, date, flow_names = ['NONCONSUMEDsw', 'NONCONSUMEDgw'])
+        non_consumed_sw_tif, non_consumed_gw_tif = split_flows(non_consumed_tif, sw_supply_fraction_tif, output_dir, date, flow_names = ['NONCONSUMEDsw', 'NONCONSUMEDgw'])
 
         ###
         # Calculate (non-)recoverable return flows per source
@@ -408,10 +244,10 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         # Calculate the blue water demand
         ###
         demand_tif = calc_demand(complete_data['lai'][0][complete_data['lai'][1] == date][0], complete_data['etref'][0][complete_data['etref'][1] == date][0], complete_data['p'][0][complete_data['p'][1] == date][0], metadata['lu'], date, os.path.join(output_dir, 'data'))
-
-        residential_demand = include_residential_supply(population_tif, metadata['lu'], total_supply_tif, date, lucs, 110, wcpc_minimal = 100)
-
-        becgis.set_classes_to_value(demand_tif, metadata['lu'], lucs['Residential'], value = residential_demand)
+        if "population_tif" in global_data.keys():
+            population_tif = global_data["population_tif"]
+            residential_demand = include_residential_supply(population_tif, metadata['lu'], total_supply_tif, date, lucs, 110, wcpc_minimal = 100)
+            becgis.set_classes_to_value(demand_tif, metadata['lu'], lucs['Residential'], value = residential_demand)
 
         ###
         # Create sheet 4
@@ -437,9 +273,8 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         return_flow_gw_sw = np.append(return_flow_gw_sw, return_flow_gw_sw_tif)
         return_flow_gw_gw = np.append(return_flow_gw_gw, return_flow_gw_gw_tif)
         
-        print "sheet 4 finished for {0} (going to {1})".format(date, common_dates[-1])
-
-        #recharge_tif = complete_data["perc"][0][complete_data["perc"][1] == date][0]
+        print "sheet 4 finished for {0} (going to {1})".format(date, complete_data['etb'][1][-1])
+        
         recharge_tif = complete_data["recharge"][0][complete_data["recharge"][1] == date][0]
         baseflow = accumulate_per_classes(metadata['lu'], complete_data["bf"][0][complete_data["bf"][1] == date][0], range(1,81), scale = 1e-6)
         capillaryrise = 0.01 * accumulate_per_classes(metadata['lu'], supply_gw_tif, range(1,81), scale = 1e-6)
@@ -464,11 +299,13 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         
     csv4_folder = os.path.join(output_dir2, 'sheet4_monthly')
     csv4_yearly_folder = os.path.join(output_dir2, 'sheet4_yearly')
-    sheet4_csv_yearly = hl.create_csv_yearly(csv4_folder, csv4_yearly_folder, year_position = [-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 1)
+    sheet4_csv_yearly = hl.create_csv_yearly(csv4_folder, csv4_yearly_folder, 4, 
+                                             metadata['water_year_start_month'], year_position = [-11,-7], month_position = [-6,-4],
+                                             header_rows = 1, header_columns = 1)
     
     csv6_folder = os.path.join(output_dir3, 'sheet6_monthly')
     csv6_yearly_folder = os.path.join(output_dir3, 'sheet6_yearly')
-    csv6 = hl.create_csv_yearly(csv6_folder, csv6_yearly_folder, year_position = [-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 2)
+    csv6 = hl.create_csv_yearly(csv6_folder, csv6_yearly_folder, 6, metadata['water_year_start_month'], year_position = [-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 2)
     
     for csv_file in csv6:
         year = csv_file[-8:-4]
@@ -476,7 +313,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     
     for cv in sheet4_csv_yearly:
         year = int(cv[-8:-4])
-        create_sheet4(metadata['name'], '{0}'.format(year), ['km3/month', 'km3/month'], [cv, cv], 
+        create_sheet4(metadata['name'], '{0}'.format(year), ['km3/year', 'km3/year'], [cv, cv], 
                           [cv.replace('.csv','_a.png'), cv.replace('.csv','_b.png')], template = [get_path('sheet4_1_svg'), get_path('sheet4_2_svg')], smart_unit = True)
 
     complete_data['return_flow_sw_sw'] = (return_flow_sw_sw, common_dates)
@@ -711,39 +548,6 @@ def include_residential_supply(population_fh, lu_fh, total_supply_fh, date, shee
         demand = accumulate_per_classes(lu_fh, SUPPLY_demand, classes, scale = 1e-6)
         return demand
     
-def correct_conventional_et(total_supply_fh, conventional_et_fh, lu_fh, sheet4_lucs, sheet4_cfs, category = 'Residential'):
-    """
-    Adjust the conventional_et map to match between total supply and consumed fractions.
-    
-    Parameters
-    ----------
-    total_supply_fh : str
-        Filehandle pointing to a total_supply map in [mm/month].
-    conventional_et_fh : str
-        Filehandle pointing to a conventional_et map map in [mm/month] to be adjusted
-        in pixels with landuseclasses belonging to the provided category.
-    lu_fh : str
-        Filehandle pointing to a landusemap.
-    sheet4_lucs : dict
-        Dictionary with the different landuseclasses per category.
-    sheet4_cfs : dict
-        Dictionary with the different consumed fractions per catergory.
-    category : str, optional
-        Category to be adjusted, this category should also be a key in sheet4_lucs and
-        sheet4_cfs.
-    """
-    SUPPLY = becgis.OpenAsArray(total_supply_fh, nan_values = True)
-    CONV_ET = becgis.OpenAsArray(conventional_et_fh, nan_values = True)
-    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
-    
-    classes = sheet4_lucs[category]
-    mask = np.logical_or.reduce([LULC == value for value in classes])
-    
-    CONV_ET[mask] = SUPPLY[mask] * sheet4_cfs[category]
-    
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
-    becgis.CreateGeoTiff(conventional_et_fh, CONV_ET, driver, NDV, xsize, ysize, GeoT, Projection)
-    
 def accumulate_per_classes(lu_fh, fh, classes, scale = 1e-6):
     """
     Accumulate values on a rastermap masked by a landusemap. Function can also
@@ -964,114 +768,6 @@ def distance_to_class(lu_fh, output_folder, proximity_to_values = 23, approximat
     
     print('Finished calculating distances to waterbodies.')
     return distance_fh
-    
-#def total_supply(conventional_et_fh, other_consumed_fh, lu_fh, lu_categories, sheet4_cfs, output_folder, date, greenhouse_et_factor = 0.5):
-#    """
-#    Apply a consumed fraction to groups of landuse classes (categories) to aqcuire 
-#    maps of blue water supplies.
-#    
-#    Parameters
-#    ----------
-#    conventional_et_fh : str
-#        Filehandle pointing to a map with conventional or incremental ET data (blue
-#        ET). Projection, Resolution and NDV should be equal to other_consumed_fh
-#        and lu_fh.
-#    other_consumed_fh :str or None
-#        Filehandle pointing to a map with other water consumptions. When None,
-#        other is taken to be zero. Projection, Resolution and NDV should be equal 
-#        to conventional_et_fh and lu_fh.
-#    lu_fh : str
-#        Filehandle pointing to a landusemap. Projection, Resolution and NDV should 
-#        be equal to other_consumed_fh and conventional_et_fh.
-#    lu_categories : dict
-#        Dictionary with the different landuseclasses per category.  
-#    sheet4_cfs : dict
-#        Dictionary with the different consumed fractions per catergory. The
-#        keys in this dictionary should also be in lu_categories.
-#    output_folder : str
-#        Folder to store result, 'total_supply.tif'.
-#    date : object or str
-#        Datetime.date object corresponding to the other inputs.
-#    greenhouse_et_factor : float, optional
-#        The conventional ET is scaled with this factor before calculating the supply. When
-#        greenhouses are present in the basin, it is important to use correct_conventional_et
-#        after this function to make sure the conventional ET and cfs match with the supply maps.
-#        Default is 0.5.
-#        
-#    Returns
-#    -------
-#    output_fh : str
-#        Filehandle pointing to the total supply map.
-#        
-#    Examples
-#    --------
-#    >>> conventional_et_fh = r'D:\path\et_blue\ETblue_2006_03.tif'
-#    >>> other_consumed_fh = None
-#    >>> lu_fh = r"D:\path\LULC_map_250m.tif"
-#    >>> output_folder = r"D:\path\"
-#    
-#    >>> lu_categories = {'Forests':          [1, 8, 9, 10, 11, 17],
-#                     'Shrubland':            [2, 12, 14, 15],
-#                     'Rainfed Crops':        [34, 35, 36, 37, 38, 39, 40, 41, 
-#                                              42, 43],
-#                     'Forest Plantations':   [33, 44],
-#                     'Natural Water Bodies': [4, 19, 23, 24],
-#                     'Wetlands':             [5, 25, 30, 31],
-#                     'Natural Grasslands':   [3, 13, 16, 20],
-#                     'Other (Non-Manmade)':  [6, 7, 18, 21, 22, 26, 27, 28, 29,
-#                                              32, 45, 46, 47, 48, 49, 50, 51]}
-#                                              
-#    >>> sheet4b_cfs = {'Forests':              1.00,
-#                          'Shrubland':            1.00,
-#                          'Rainfed Crops':        1.00,
-#                          'Forest Plantations':   1.00,
-#                          'Natural Water Bodies': 1.00,
-#                          'Wetlands':             0.70,
-#                          'Natural Grasslands':   0.70,
-#                          'Other (Non-Manmade)':  0.40}
-#                          
-#    >>> total_supply(conventional_et_fh, other_consumed_fh, lu_fh, 
-#                     lu_categories, sheet4b_cfs, output_fh)
-#    "D:\path/total_supply.tif"
-#    """
-#    output_folder = os.path.join(output_folder, 'total_supply')
-#    if not os.path.exists(output_folder):
-#        os.makedirs(output_folder)
-#    
-#    if isinstance(date, datetime.date):
-#        output_fh = os.path.join(output_folder, 'total_supply_{0}{1}.tif'.format(date.year,str(date.month).zfill(2)))
-#    else:
-#        output_fh = os.path.join(output_folder, 'total_supply_{0}.tif'.format(date))
-#    
-#    list_of_maps = [np.array([lu_fh]), np.array([conventional_et_fh])]
-#    if other_consumed_fh != None:
-#        list_of_maps.append(np.array([other_consumed_fh]))
-#    becgis.AssertProjResNDV(list_of_maps)
-#    becgis.AssertPresentKeys(sheet4_cfs, lu_categories)
-#    
-#    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
-#    CONSUMED = becgis.OpenAsArray(conventional_et_fh, nan_values = True)
-#    if other_consumed_fh != None:
-#        OTHER = becgis.OpenAsArray(other_consumed_fh, nan_values = True)
-#        CONSUMED = np.nansum([CONSUMED, OTHER], axis = 0)
-#    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
-#    
-#    for key in sheet4_cfs.keys():
-#        classes = lu_categories[key]
-#        mask = np.logical_or.reduce([LULC == value for value in classes])
-#        consumed_fraction = sheet4_cfs[key]
-#        if key is 'Greenhouses':
-#            CONSUMED[mask] /= consumed_fraction * (1 / greenhouse_et_factor)
-#        else:
-#            CONSUMED[mask] /= consumed_fraction
-#        
-#    all_classes = becgis.Flatten(lu_categories.values())
-#    mask = np.logical_or.reduce([LULC == value for value in all_classes])
-#    CONSUMED[~mask] = NDV
-#    becgis.CreateGeoTiff(output_fh, CONSUMED, driver, NDV, xsize, ysize, GeoT, Projection)
-#    
-#    return output_fh
-
 
 
 def split_flows(flow_fh, fraction_fh, output_folder, date, flow_names = ['sw','gw']):
@@ -1115,8 +811,8 @@ def split_flows(flow_fh, fraction_fh, output_folder, date, flow_names = ['sw','g
         os.makedirs(output_folder_two)
         
     if isinstance(date, datetime.date):
-        flow_one_fh = os.path.join(output_folder_one, '{0}_{1}_{2}.tif'.format(flow_names[0],date.year,str(date.month).zfill(2)))
-        flow_two_fh = os.path.join(output_folder_two, '{0}_{1}_{2}.tif'.format(flow_names[1],date.year,str(date.month).zfill(2)))
+        flow_one_fh = os.path.join(output_folder_one, '{0}_{1}{2}.tif'.format(flow_names[0],date.year,str(date.month).zfill(2)))
+        flow_two_fh = os.path.join(output_folder_two, '{0}_{1}{2}.tif'.format(flow_names[1],date.year,str(date.month).zfill(2)))
     else:
         flow_one_fh = os.path.join(output_folder_one, '{0}_{1}.tif'.format(flow_names[0],date))
         flow_two_fh = os.path.join(output_folder_two, '{0}_{1}.tif'.format(flow_names[1],date))        
@@ -1296,282 +992,7 @@ def create_sheet4_csv(entries, lu_fh, sheet4_lucs, date, output_folder, aquacult
     return output_csv_fh
 
 
-def splitET_BlueGreen(et_fhs, et_dates, etref_fhs, etref_dates, p_fhs, p_dates, lu_fh, output_dir, 
-                      moving_avg_length = 7, green_blue_categories = None, plot_graph = True, 
-                      method = 'tail', scale = 1.1, basin = ''):
-    """
-    Splits georeferenced evapotranspiration rastermaps into blue and green evapotranspiration maps.
-    
-    Parameters
-    ----------
-    et_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced evapotranspiration rastermaps.
-    et_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in et_fhs. Length should be equal
-        to et_fhs.
-    etref_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced reference evapotranspiration rastermaps.
-    etref_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etref_fhs. Length should be equal
-        to etref_fhs.
-    p_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced precipitation rastermaps.
-    p_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in p_fhs. Length should be equal
-        to p_fhs.
-    lu_fh : str
-        Filehandle pointing to a landusemap.
-    output_dir : str
-        String pointing to a folder to store output
-    moving_average_length : int or dict, optional
-        Number of months used to calculate averages. Default is 7. In case a dictionary is provided,
-        different lengths can be specified per landuse category.
-    green_blue_categories : dict
-        Dictionary indicating which landuseclasses belong to which category.
-    plot_graph : boolean, optional
-        Create a graph of the ETblue and ETgreen timeseries when True. Default is True.
-    method : str, optional
-        Method to calculate the average for ET0 and P. Default is 'tail', other option is 'central'.
-    scale : float, optional
-        Increase the budyko water-limit. Default is 1.1.
-        
-    Returns
-    -------
-    etblue_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced blue-evapotranspiration rastermaps.
-    etblue_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etblue_fhs. Length is equal
-        to et_fhs.
-    etgreen_fhs : ndarray
-        Array containing strings with filehandles pointing to georeferenced green-evapotranspiration rastermaps.
-    etgreen_dates : ndarray
-        Array containing datetime.date objects corresponding to the filehandles in etgreen_fhs. Length is equal
-        to etgreen_fhs.
-    """
-    becgis.AssertProjResNDV([et_fhs, etref_fhs, p_fhs])
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(et_fhs[0])
-    
-    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
-     
-    common_dates = becgis.CommonDates([et_dates, etref_dates, p_dates])
-    
-    if type(moving_avg_length) is dict:
-        max_moving_avg_length = np.max(moving_avg_length.values())
-        becgis.plot_category_areas(lu_fh, green_blue_categories, os.path.join(output_dir, 'Landuse_Areas.png'), area_treshold = 0.01)
-        if method == 'central':
-            dts = common_dates[(max_moving_avg_length-1)/2:len(common_dates)-(max_moving_avg_length-1)/2]
-            for value in moving_avg_length.values():
-                assert (value % 2) != 0, "Please provide only uneven lengths when using method 'central'"
-        elif method == 'tail':
-            dts = common_dates[max_moving_avg_length-1:]
-        assert green_blue_categories is not None, "Please provide a dictionary specifying the different landusecategories."
-    else:
-        max_moving_avg_length = moving_avg_length
-        if method == 'central':
-            dts = common_dates[(max_moving_avg_length-1)/2:len(common_dates)-(max_moving_avg_length-1)/2]
-            assert (moving_avg_length % 2) != 0, "Please provide a uneven moving average length."
-        elif method == 'tail':
-            dts = common_dates[max_moving_avg_length-1:]
-       
-    becgis.AssertMissingDates(common_dates, timescale = 'months')
-    
-    directory_etgreen = os.path.join(output_dir, "etg")
-    if not os.path.exists(directory_etgreen):
-        os.makedirs(directory_etgreen)
-    
-    directory_etblue = os.path.join(output_dir, "etb")
-    if not os.path.exists(directory_etblue):
-        os.makedirs(directory_etblue)
-        
-    print("Starting calculation of Blue and Green ET for {0} months between {1} and {2}.".format(len(dts), dts[0], dts[-1]))
-    
-    if plot_graph:
-        etblue = np.array([])
-        etgreen = np.array([])
-        et = np.array([])
-        p = np.array([])
-        pavg = np.array([])
-    
-        rows = 4
-        cols = 3
-        
-        row_no = np.sort(range(rows)*cols)
-        col_no = range(cols)*rows
-        
-        stats = becgis.ZonalStats(p_fhs, p_dates, output_dir, 'Precipitation', '[mm/month]', basin)
-        vmax = np.round((stats[0]*1.1)/10)*10
-        
-        directory_budyko = os.path.join(output_dir, "Budyko_Curves")
-        if not os.path.exists(directory_budyko):
-            os.makedirs(directory_budyko)
-    
-    for date in dts:
-        
-        P = becgis.OpenAsArray(p_fhs[p_dates == date][0], nan_values = True)
-        ET  = becgis.OpenAsArray(et_fhs[et_dates == date][0], nan_values = True)
-        ETREF = becgis.OpenAsArray(etref_fhs[etref_dates == date][0], nan_values = True)
-        
-        if type(moving_avg_length) is dict:
-            Pavg = becgis.MaskedMovingAverage(date, p_fhs, p_dates, lu_fh, moving_avg_length, green_blue_categories, method = method)
-            ETREFavg = becgis.MaskedMovingAverage(date, etref_fhs, etref_dates, lu_fh, moving_avg_length, green_blue_categories, method = method)    
-            lu_dependent = True
-        else:
-            Pavg = becgis.MovingAverage(date, p_fhs, p_dates, moving_avg_length = moving_avg_length, method = method)
-            ETREFavg = becgis.MovingAverage(date, etref_fhs, etref_dates, moving_avg_length = moving_avg_length, method = method)
-            lu_dependent = False
-        
-        if np.all([np.any([date.month == 1, date == dts[0]]), plot_graph]):
-            maxim = mayim = 0.0
-            fig, axarr = plt.subplots(rows, cols, sharex=True, sharey=True, figsize = (8.27, 11.69))
-            title = 'Budyko Curves \n (P_{0}, {1} months, lu_dependent: {2}, scale: {3})'.format(method, max_moving_avg_length, lu_dependent, scale)
-        
-        mask = np.any([np.isnan(LULC), np.isnan(ET), np.isnan(ETREF), np.isnan(P), np.isnan(Pavg), np.isnan(ETREFavg)], axis=0)
-        ETREF[mask] = ETREFavg[mask] = ET[mask] = P[mask] = Pavg[mask] = np.nan
-        
-        phi = ETREFavg / Pavg
-      
-        ## Calculate Bydyko-index
-        budyko = scale * np.sqrt(phi*np.tanh(1/phi)*(1-np.exp(-phi)))
-         
-        ETgreen = np.minimum(budyko*P,ET)
-        
-        ## Calculate blue ET
-        ETblue = ET - ETgreen
-        
-        ## Save ETgreen-map
-        output_fh = os.path.join(directory_etgreen, 'ETgreen_{0}{1}.tif'.format(date.year,str(date.month).zfill(2)))
-        becgis.CreateGeoTiff(output_fh, ETgreen, driver, NDV, xsize, ysize, GeoT, Projection)
-
-        ## Save ETblue-map
-        output_fh = os.path.join(directory_etblue, 'ETblue_{0}{1}.tif'.format(date.year,str(date.month).zfill(2)))
-        becgis.CreateGeoTiff(output_fh, ETblue, driver, NDV, xsize, ysize, GeoT, Projection)
-        
-        if plot_graph:
-            
-            etblue = np.append(etblue, np.nanmean(ETblue))
-            etgreen = np.append(etgreen, np.nanmean(ETgreen))
-            et = np.append(et, np.nanmean(ET))
-            p = np.append(p, np.nanmean(P))
-            pavg = np.append(pavg, np.nanmean(Pavg))
-            
-            frac_ETa = ET/Pavg
-
-            if green_blue_categories:
-                from matplotlib.colors import LinearSegmentedColormap
-                n_cats = len(green_blue_categories)
-                clrs = ['#6bb8cc','#87c5ad', '#9ad28d', '#acd27a', '#c3b683', '#d4988b', '#b98b89', '#868583', '#497e7c',
-                        '#6bb8cc','#87c5ad', '#9ad28d', '#acd27a', '#c3b683', '#d4988b', '#b98b89', '#868583', '#497e7c']
-                cmap = LinearSegmentedColormap.from_list('LUC', clrs[0:n_cats], N = n_cats)
-                C = np.ones_like(LULC)
-                for i, key in enumerate(green_blue_categories.keys()):
-                    classes = green_blue_categories[key]
-                    mask = np.logical_or.reduce([LULC == value for value in classes])
-                    C[mask] += i
-                vmin = 0.5
-                vmax = vmin + n_cats
-                
-            else:
-                C = P
-                vmin = 0
-                cmap = 'viridis'
-                
-            im = axarr[row_no[date.month-1],col_no[date.month-1]].scatter(phi, frac_ETa, c=C, marker = '.', alpha=1.0, lw=0.0, cmap=cmap, vmin = vmin, vmax = vmax)
-
-            maxim = np.max([maxim,np.nanmax(phi)])
-            mayim = np.max([mayim,np.nanmax(frac_ETa)])
-            
-            axarr[row_no[date.month-1],col_no[date.month-1]].set_title('{0}'.format(date))
-        
-        print(date)
-        
-        if np.all([np.any([date.month == 12, date == dts[-1]]), plot_graph]):
-            
-            x = np.arange(0,maxim*1.2,0.1)
-            y = scale * np.sqrt(x*np.tanh(1/x)*(1-np.exp(-x)))
-            
-            for row, col in zip(row_no, col_no):
-                axarr[row,col].set_xlim([0,maxim*1.1])
-                axarr[row,col].set_ylim([0,max(1.1,mayim*1.1)])
-                im2, = axarr[row,col].plot(x,y,'-k' , label = 'Budyko Curve')
-                axarr[row,col].plot(x,x*scale,'--k', label = 'Energy Limit')
-                axarr[row,col].plot(x,np.ones_like(x)*scale,'--k', label = 'Water Limit')
-                
-                if row == max(row_no):
-                    axarr[row,col].set_xlabel(r'ET0avg/Pavg')
-                if col == min(col_no):
-                    axarr[row,col].set_ylabel(r'ETa/Pavg or Max_ETg/P')
-            
-            fig.subplots_adjust(right=0.8)
-            cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-            
-            if green_blue_categories:
-                cbar = fig.colorbar(im, cax=cbar_ax)
-                cbar.set_ticks(range(1,n_cats + 1))
-                cbar.set_ticklabels(green_blue_categories.keys())
-            else:
-                cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-                cbar = fig.colorbar(im, cax=cbar_ax, label = 'P [mm/month]')
-            
-            fig.suptitle(title, fontsize = 13)
-            fig.legend([im, im2], ('ETa/Pavg', 'Max_ETgreen/P'), 'lower center', ncol =2, fancybox=True, shadow=True)
-            fig.autofmt_xdate(bottom=0.2, rotation=30, ha='right')
-            
-            print("Saving Budyko plot for {0}...".format(date.year))
-            
-            plt.savefig(os.path.join(directory_budyko, 'bc{0}_{1}months_{2}_lu{3}.png'.format(date.year, max_moving_avg_length, method, str(lu_dependent))))
-            plt.close(fig)
-            
-    etblue_fhs, etblue_dates, etblue_years, etblue_months, etblue_days = becgis.SortFiles(directory_etblue, [-10,-6], month_position = [-6,-4])
-    etgreen_fhs, etgreen_dates, etgreen_years, etgreen_months, etgreen_days = becgis.SortFiles(directory_etgreen,  [-10,-6], month_position = [-6,-4]) 
-    
-    if plot_graph:
-        fig = plt.figure(figsize = (10,10))
-        plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-        ax = fig.add_subplot(111)
-        ax.plot(dts, et, color = 'k')
-        ax.patch.set_visible(False)
-        ax.set_title('Average ET and ETblue and ETgreen fractions')
-        ax.set_ylabel('ET [mm/month]')
-        ax.patch.set_visible(True)
-        ax.fill_between(dts, et, color = '#6bb8cc', label = 'ETblue')
-        ax.fill_between(dts, et - etblue, color = '#a3db76', label = 'ETgreen')
-        ax.scatter(dts, et, color = 'k')
-        ax.legend(loc = 'upper left',fancybox=True, shadow=True)
-        fig.autofmt_xdate()
-        fig.suptitle('P_{0}, {1} months, lu_dependent: {2}, scale: {3}'.format(method, max_moving_avg_length, lu_dependent, scale))
-        ax.set_xlim([dts[0], dts[-1]])
-        ax.set_ylim([0, max(et) *1.2])
-        ax.set_xlabel('Time')
-        [j.set_zorder(10) for j in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'ETbluegreen_{0}months_{1}_lu{2}.png'.format(max_moving_avg_length, method, str(lu_dependent))))
-        plt.close(fig)
-        
-    if plot_graph:
-        fig = plt.figure(figsize = (10,10))
-        plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
-        ax = fig.add_subplot(111)
-        ax.plot(dts, p, color = 'k')
-        ax.patch.set_visible(False)
-        ax.set_title('(Averaged) Precipitation')
-        ax.set_ylabel('P [mm/month]')
-        ax.patch.set_visible(True)
-        ax.fill_between(dts, p, color = '#6bb8cc', label = 'Actual P')
-        ax.scatter(dts, p, color = 'k')
-        ax.plot(dts, pavg, '--k', label = 'Average P')
-        ax.legend(loc = 'upper left',fancybox=True, shadow=True)
-        fig.autofmt_xdate()
-        fig.suptitle('P_{0}, {1} months, lu_dependent: {2}'.format(method, max_moving_avg_length, lu_dependent))
-        ax.set_xlim([dts[0], dts[-1]])
-        ax.set_ylim([0, max([max(pavg),max(p)]) *1.2])
-        ax.set_xlabel('Time')
-        [j.set_zorder(10) for j in ax.spines.itervalues()]
-        plt.savefig(os.path.join(output_dir,'Paveraged_{0}months_{1}_lu{2}.png'.format(max_moving_avg_length, method, str(lu_dependent))))
-        plt.close(fig)
-        
-    return etblue_fhs, etblue_dates, etgreen_fhs, etgreen_dates  
-
-
-def create_sheet4(basin, period, units, data, output, template=False, margin = 0.01, smart_unit = False):
+def create_sheet4(basin, period, units, data, output, template=False, margin = 0.01, smart_unit = True):
     """
     Create sheet 4 of the Water Accounting Plus framework.
     
@@ -1754,10 +1175,10 @@ def create_sheet4(basin, period, units, data, output, template=False, margin = 0
                           p1['sp_r04_c01'] >= (1 - margin) * (p1['sp_r04_c02'] + p1['sp_r04_c03'])])])
         assert pd.np.any([np.isnan(p1['sp_r05_c01']), pd.np.all([p1['sp_r05_c01'] <= (1 + margin) * (p1['sp_r05_c02'] + p1['sp_r05_c03']), 
                           p1['sp_r05_c01'] >= (1 - margin) * (p1['sp_r05_c02'] + p1['sp_r05_c03'])])])
-        assert pd.np.any([np.isnan(p1['sp_r06_c01']), pd.np.all([p1['sp_r06_c01'] <= (1 + margin) * (p1['sp_r06_c02'] + p1['sp_r06_c03']), 
-                          p1['sp_r06_c01'] >= (1 - margin) * (p1['sp_r06_c02'] + p1['sp_r06_c03'])])])
         assert pd.np.any([np.isnan(p1['sp_r07_c01']), pd.np.all([p1['sp_r07_c01'] <= (1 + margin) * (p1['sp_r07_c02'] + p1['sp_r07_c03']), 
                           p1['sp_r07_c01'] >= (1 - margin) * (p1['sp_r07_c02'] + p1['sp_r07_c03'])])])
+        assert pd.np.any([np.isnan(p1['sp_r06_c01']), pd.np.all([p1['sp_r06_c01'] <= (1 + margin) * (p1['sp_r06_c02'] + p1['sp_r06_c03']), 
+                          p1['sp_r06_c01'] >= (1 - margin) * (p1['sp_r06_c02'] + p1['sp_r06_c03'])])])
         assert pd.np.any([np.isnan(p1['sp_r08_c01']), pd.np.all([p1['sp_r08_c01'] <= (1 + margin) * (p1['sp_r08_c02'] + p1['sp_r08_c03']), 
                           p1['sp_r08_c01'] >= (1 - margin) * (p1['sp_r08_c02'] + p1['sp_r08_c03'])])])
         
