@@ -23,7 +23,6 @@ from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.pairwise_validation as pwv
 from WA_Hyperloop.paths import get_path
 
-
 def sum_ts(flow_csvs):
     
     flows = list()
@@ -53,18 +52,19 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     output_folder = os.path.join(output_dir, metadata['name'], 'sheet1')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)    
-        
-    output_fh_in, output_fh_out = create_sheet1_in_outflows(os.path.join(output_dir, metadata['name'], "sheet5", "sheet5_monthly"), metadata, output_folder)
-        
     
+    output_fh_in = False
+    
+    output_fh_in, output_fh_out = create_sheet1_in_outflows(os.path.join(output_dir, metadata['name'], "sheet5", "sheet5_monthly"), metadata, output_folder) 
     outflow_values, outflow_dates = sum_ts(np.array([output_fh_out]))
+    
     
     if output_fh_in:
         inflow_values, inflow_dates = sum_ts(np.array([output_fh_in]))
     
     # Calculate the average longterm outflow.
     q_out_avg = np.nanmean(outflow_values)
-    
+
     # Open a dictionary specyfing the landuseclasses.
     sheet1_lucs = gd.get_sheet1_classes()
     
@@ -72,7 +72,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     if output_fh_in:
         common_dates = becgis.CommonDates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1], outflow_dates, inflow_dates])
     else:
-        common_dates = becgis.CommonDates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1], outflow_dates])
+        common_dates = becgis.CommonDates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1]]) #, outflow_dates])
     
     # Create list to store results.
     all_results = list()
@@ -88,7 +88,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
         
         # Select the required outflow value.
         q_outflow = outflow_values[outflow_dates == date][0]
-        
+
         if output_fh_in:
             q_inflow = inflow_values[inflow_dates == date][0]
         else:
@@ -112,7 +112,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     plot_parameter(all_results, common_dates, metadata['name'], output_folder, 'utilizable_outflow')
     
     # Create yearly csv-files.
-    yearly_csv_fhs = hl.create_csv_yearly(os.path.split(output_fh)[0], os.path.join(output_folder, "sheet1_yearly"), year_position = [-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 3)
+    yearly_csv_fhs = hl.create_csv_yearly(os.path.split(output_fh)[0], os.path.join(output_folder, "sheet1_yearly"), 1, metadata['water_year_start_month'], year_position = [-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 3)
     
     # Plot yearly sheets.
     for csv_fh in yearly_csv_fhs:
@@ -487,21 +487,13 @@ def create_sheet1_in_outflows(sheet5_csv_folder, metadata, output_dir):
         df = pd.read_csv(f,sep=';')
         df_basin = df.loc[df.SUBBASIN == 'basin'] 
         df_inf = df_basin.loc[df_basin.VARIABLE == 'Inflow']
-        df_withdr = df_basin.loc[df_basin.VARIABLE == 'SW withdr. total']
+        df_tran = df_basin.loc[df_basin.VARIABLE == 'Interbasin Transfer']
         df_outf = df_basin.loc[df_basin.VARIABLE == 'Outflow: Total']
-        writer_in.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %float(df_inf.VALUE)])
-        
-        ###
-        # 
-        ###
-        val = float(df_outf.VALUE) #- float(df_withdr.VALUE)
-        ###
-        #
-        ###
-        
-        writer_out.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %val])
+#        writer_in.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %(float(df_inf.VALUE) + (float(df_tran.VALUE)))])
+        writer_in.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %(float(df_inf.VALUE))])
+        writer_out.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %float(df_outf.VALUE)])
+#        total_inflow += float(df_inf.VALUE)+ (float(df_tran.VALUE))
         total_inflow += float(df_inf.VALUE)
-        
     csv_file_in.close()
     csv_file_out.close()
     
@@ -711,7 +703,7 @@ def calc_utilizedflow(incremental_et, other, non_recoverable, other_fractions, n
     
     return uf_plu, uf_ulu, uf_mlu, uf_mwu
 
-def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_avg, output_folder, q_in_sw = 0., q_in_gw = 0., q_in_desal = 0., q_out_sw = 0., q_out_gw = 0.):
+def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_avg, output_folder, q_in_sw, q_in_gw = 0., q_in_desal = 0., q_out_sw = 0., q_out_gw = 0.):
     """
     Calculate the required values to plot Water Accounting Plus Sheet 1.
     
@@ -756,7 +748,7 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     
     pixel_area = becgis.MapPixelAreakm(lu_fh)
 
-    gray_water_fraction = np.min([0.95, becgis.calc_basinmean(entries['WPL'], lu_fh)])
+    gray_water_fraction = becgis.calc_basinmean(entries['WPL'], lu_fh)
     ewr_percentage = becgis.calc_basinmean(entries['EWR'], lu_fh)
     
     P[np.isnan(LULC)] = ETgreen[np.isnan(LULC)] = ETblue[np.isnan(LULC)] = np.nan
@@ -774,8 +766,8 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     landscape_et = calc_ETs(ETgreen, lu_fh, sheet1_lucs)
     incremental_et = calc_ETs(ETblue, lu_fh, sheet1_lucs)
     
-    results['manmade'] = incremental_et['Modified'] + incremental_et['Managed']
-    results['natural'] = incremental_et['Protected'] + incremental_et['Utilized']    
+    results['manmade'] = incremental_et['Managed']
+    results['natural'] = incremental_et['Modified'] + incremental_et['Protected'] + incremental_et['Utilized']    
     
     other_fractions = {'Modified': 0.00,
                        'Managed':  1.00,
@@ -847,8 +839,10 @@ def calc_wb(P, ET, q_outflow, recycling_ratio, q_in_sw = 0, q_in_gw = 0, q_in_de
         The change in storage.        
     """
     et_advection = (1 - recycling_ratio) * np.nansum(ET)
-    p_recycled = recycling_ratio * np.nansum(ET)
-    p_advection = np.nansum(P) - p_recycled
+    p_total = np.nansum(P)
+    p_recycled = min(recycling_ratio * np.nansum(ET), p_total)
+    et_advection = np.nansum(ET) - p_recycled
+    p_advection = p_total - p_recycled
     dS = q_outflow + et_advection + q_out_sw + q_out_gw - p_advection - q_in_sw - q_in_gw - q_in_desal
     return et_advection, p_advection, p_recycled, dS
 
@@ -931,3 +925,4 @@ def calc_non_utilizable(P, ET, fractions_fh):
     fractions = becgis.OpenAsArray(fractions_fh, nan_values = True)
     non_utilizable_runoff = np.nansum((P - ET) * fractions)
     return non_utilizable_runoff
+
