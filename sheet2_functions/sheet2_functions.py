@@ -347,6 +347,9 @@ def splitET_ITE(lu_fh, et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_f
         
         # Open ET and NDM maps and set NDV pixels to NaN.
         ET = becgis.OpenAsArray(et_fhs[et_dates == date][0], nan_values = True)
+        
+        I = np.nanmin((I, ET), axis = 0)
+        
         NDM = becgis.OpenAsArray(ndm_fhs[ndm_dates == date][0], nan_values = True)
         
         if ndm_max_original:
