@@ -1,0 +1,7 @@
+New Inputs Needed (Claire 11/02/2019) - Delete this file once the .md file is complete
+
+'fraction_xs':              [10,50,10,50],
+'discharge_out_from_wp':    True, #Value is true if WaterPix is used directly in sheet5 rather than Surfwat
+'lu_based_supply_split':    False, #Value is True if an initial split in SW/GW supply is done based on landuse class and values in get_dictionnaries
+'grace_supply_split':       True, #Value is True if GW/SW split is adjusted. Can be true weather or not initial split based on landuse is done. If both of these are False, all supply will be SWsupply
+'water_year_start_month':   10, #Start month of water year. Used to compute the yearly sheets.
