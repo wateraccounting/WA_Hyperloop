@@ -35,7 +35,7 @@ def create_sheet2(complete_data, metadata, output_dir):
                                                          complete_data['ndm'][0], 
                                                          complete_data['ndm'][1], 
                                                          os.path.join(output_dir, metadata['name'], 'data'), 
-                                                         ndm_max_original = False, 
+                                                         ndm_max_original = metadata['ndm_max_original'], 
                                                          plot_graph = True, 
                                                          save_e = False)
     
@@ -297,14 +297,12 @@ def splitET_ITE(lu_fh, et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_f
             std, mean = becgis.CalcMeanStd(ndm_fhs[ndm_months == month], None, None)
             ndm_temporal_mean = mean #+ 2 * std
             ndm_temporal_mean [np.isnan(ndm_temporal_mean )] = 0.
-            ndm_spatial_max = ndimage.maximum_filter(ndm_temporal_mean, footprint = footprint)
             ndm_spatial_max = ndm_temporal_mean * 0.0
             for lu in np.unique(LU):
                 ndm_lu = ndm_temporal_mean * 0.0
                 ndm_lu[LU == lu] = ndm_temporal_mean[LU == lu]
                 intermediate = ndimage.maximum_filter(ndm_lu, footprint = footprint)
                 ndm_spatial_max[LU==lu] = intermediate[LU==lu]
-#            ndm_spatial_max = ndm_temporal_max
             output_fh = os.path.join(ndm_max_folder, 'ndm_max_{0}.tif'.format(month_labels[month]))
             becgis.CreateGeoTiff(output_fh, ndm_spatial_max, driver, NDV, xsize, ysize, GeoT, Projection)
             ndm_max_fhs[month] = output_fh

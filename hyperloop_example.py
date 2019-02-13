@@ -55,6 +55,7 @@ basins[ID] = {
             'grace_supply_split':       True, #Value is True if GW/SW split is adjusted. Can be true weather or not initial split based on landuse is done. If both of these are False, all supply will be SWsupply
             'grace_split_alpha_bounds': ([0., 0., 0.], [1.0, 1.0, 12.]), # lower and upper bounds of trigonometric function parameters for splitting suply into sw and gw as ([alpha_l, beta_l, theta_l],[alpha_u, beta_u, theta_u]). ([0., 0., 0.], [1.0, 1.0, 12.]) are the widest bounds allowed. alpha controls the mean, beta the amplitude and theta the phase.
             'water_year_start_month':   10, #Start month of water year. Used to compute the yearly sheets.
+            'ndm_max_original':         False, # True will use original method to determine NDM_max (based on entire domain), false will use a different method dependent on nearby pixels of the same lu-category.
             }
             
 ###
