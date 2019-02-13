@@ -328,6 +328,7 @@ def get_hi_and_ec():
     'Beans': [0.16, 0.33],
     'Cassava': [0.6, 0.65],
     'Cashew': [0.03, 0.3],
+    'Chickpea' : [.34, .15],
     'Coconut': [0.244, 0.0],
     'Coffee': [0.012, 0.88],
     'Cotton': [0.13, 0.2],
@@ -358,7 +359,7 @@ def get_hi_and_ec():
     'Peanut':[0.03, 0.3],
     'Almond':[0.03, 0.3],
     'Pepper':[0.1, 0.5],
-    'Mellon':[0.8, 0.6]
+    'Melon':[0.8, 0.6]
         }
     
     return HIWC
@@ -421,25 +422,7 @@ def get_sheet4_6_classes(version = '1.0'):
     return lucs[version]
 
 def get_sheet4_6_fractions(version = '1.0'):
-    consumed_fractions = dict()
     sw_supply_fractions = dict()
-    sw_return_fractions = dict()
-    
-    consumed_fractions['1.0'] = {
-    'Forests':              1.00,
-    'Shrubland':            1.00,
-    'Rainfed Crops':        1.00,
-    'Forest Plantations':   1.00,
-    'Natural Water Bodies': 0.15,
-    'Wetlands':             0.15,
-    'Natural Grasslands':   0.70,
-    'Other (Non-Manmade)':  0.40,
-    'Irrigated crops':      0.80,
-    'Managed water bodies': 0.40,
-    'Other':                0.40,
-    'Residential':          1.00,
-    'Greenhouses':          0.95,
-    'Aquaculture':          0.20}
     
     sw_supply_fractions['1.0'] = {
     'Forests':              0.001,
@@ -455,25 +438,9 @@ def get_sheet4_6_fractions(version = '1.0'):
     'Other':                0.50,
     'Residential':          0.90,
     'Greenhouses':          0.50,
-    'Aquaculture':          0.95}
+    'Aquaculture':          0.95} 
     
-    sw_return_fractions['1.0'] = {
-    'Forests':              0.05,
-    'Shrubland':            0.05,
-    'Rainfed Crops':        0.05,
-    'Forest Plantations':   0.05,
-    'Natural Water Bodies': 0.95,
-    'Wetlands':             0.95,
-    'Natural Grasslands':   0.10,
-    'Other (Non-Manmade)':  0.50,
-    'Irrigated crops':      0.50,
-    'Managed water bodies': 0.95,
-    'Other':                0.50,
-    'Residential':          0.70,
-    'Greenhouses':          0.50,
-    'Aquaculture':          0.95}
-    
-    return consumed_fractions[version], sw_supply_fractions[version], sw_return_fractions[version]
+    return  sw_supply_fractions[version]
 
 def get_sheet3_empties(): 
     wp_y_irrigated_dictionary = {
