@@ -16,6 +16,8 @@ def get_path(name):
              'sheet4_2_svg':  r"D:\Github\WA_Hyperloop\svg\sheet_4_part2.svg",
              'sheet6_svg':    r"D:\Github\WA_Hyperloop\svg\sheet_6.svg",
              'sheet5_svg':    r"D:\Github\WA_Hyperloop\svg\sheet_5.svg",
+             'sheet7m_svg':  r"D:\Github\WA_Hyperloop\svg\\sheet7_month.svg",
+             'sheet7y_svg':  r"D:\Github\WA_Hyperloop\svg\svg\sheet7_yearly.svg",
              'gdalwarp':      r"C:\Program Files\QGIS 2.18\bin\gdalwarp.exe"
              }
     
