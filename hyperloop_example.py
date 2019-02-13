@@ -21,7 +21,6 @@ ID = 14
 basins[ID] = {
             # Give name and ID of basin, set ID equal to key.
             'name':                     'VGTB',
-            'id':                       ID,
             
             # Give LU-map, SW-file, 
             # folder with subbasin masks (name: subbasinname_ID.tif)
