@@ -100,7 +100,7 @@ def endofmonth(dates):
 
 def calc_var_correction(metadata, complete_data, output_dir,
                         formula = 'p-et-tr+supply_total', plot = True,
-                        slope = False, return_slope = False):
+                        slope = False, return_slope = False, bounds = (0, [1.0, 1., 12.])):
     
     if plot:
         output_dir = os.path.join(output_dir)
@@ -159,7 +159,7 @@ def calc_var_correction(metadata, complete_data, output_dir,
     
     p0 = [0.0, 0.5, 6.0]
     
-    a, b = optimization.curve_fit(func, x, grace[1][msk], p0 = p0 , bounds=(0, [1.0, 1., 12.]))                   
+    a, b = optimization.curve_fit(func, x, grace[1][msk], p0 = p0 , bounds= bounds)                   
     
     if plot:
         plt.figure(1)
@@ -248,62 +248,62 @@ def calc_gwsupply(total_supply, params):
     gw_supply = (total_supply[0], total_supply[1] - (total_supply[1] * scalar_array))
     return gw_supply
 
-
-def correct_var_test(metadata, complete_data, output_dir, formula,
-                new_var = None, slope = False):
-    
-    var = split_form(formula)[0][-1]
-    
-    a, x0 = calc_var_correction(metadata, complete_data, output_dir,
-                            formula = formula, slope = slope)
-    
-    LULC = becgis.OpenAsArray(metadata['lu'])
-    geo_info = becgis.GetGeoInfo(metadata['lu'])
-    lucs = gd.get_sheet4_6_classes()
-    
-    gw_classes = list()
-    for subclass in ['Forests','Rainfed Crops','Shrubland','Forest Plantations']:
-        gw_classes += lucs[subclass]
-        
-    mask_gw = np.logical_or.reduce([LULC == value for value in gw_classes])
-            
-    for fn, date in zip(complete_data[var][0], complete_data[var][1]):
-        
-        time_scale = 'monthly'
-        if time_scale == 'monthly':
-            x = 12 * (date.year - x0[1].year) + (date.month - 1) + x0[0]
-        
-        scalar = a[0] * (np.cos((x - a[2]) * (np.pi / 6)) * 0.5 + 0.5) + (a[1] * (1 - a[0]))
-        
-        geo_info = becgis.GetGeoInfo(fn)
-        
-        data = becgis.OpenAsArray(fn, nan_values = True)
-        
-        scalar_array = np.ones(np.shape(LULC)) * scalar
-        #scalar_array[mask_gw] = 0.0
-        
-        data *= scalar_array
-        
-        if new_var != None:
-            flder = os.path.join(output_dir, metadata['name'], 'data', new_var)
-            if not os.path.exists(flder):
-                os.makedirs(flder)
-            bla = os.path.split(fn)[1].split('_')[-1]
-            filen = 'supply_sw_' + bla[0:4] + '_' + bla[4:6] + '.tif'
-            fn = os.path.join(flder, filen)
-        becgis.CreateGeoTiff(fn, data, *geo_info)
-        
-    if new_var != None:
-        meta = becgis.SortFiles(flder, [-11,-7], month_position = [-6,-4])[0:2]
-        return a, meta
-    else:
-        return a
+# Delete (bert)
+#def correct_var_test(metadata, complete_data, output_dir, formula,
+#                new_var = None, slope = False):
+#    
+#    var = split_form(formula)[0][-1]
+#    
+#    a, x0 = calc_var_correction(metadata, complete_data, output_dir,
+#                            formula = formula, slope = slope)
+#    
+#    LULC = becgis.OpenAsArray(metadata['lu'])
+#    geo_info = becgis.GetGeoInfo(metadata['lu'])
+#    lucs = gd.get_sheet4_6_classes()
+#    
+#    gw_classes = list()
+#    for subclass in ['Forests','Rainfed Crops','Shrubland','Forest Plantations']:
+#        gw_classes += lucs[subclass]
+#        
+#    mask_gw = np.logical_or.reduce([LULC == value for value in gw_classes])
+#            
+#    for fn, date in zip(complete_data[var][0], complete_data[var][1]):
+#        
+#        time_scale = 'monthly'
+#        if time_scale == 'monthly':
+#            x = 12 * (date.year - x0[1].year) + (date.month - 1) + x0[0]
+#        
+#        scalar = a[0] * (np.cos((x - a[2]) * (np.pi / 6)) * 0.5 + 0.5) + (a[1] * (1 - a[0]))
+#        
+#        geo_info = becgis.GetGeoInfo(fn)
+#        
+#        data = becgis.OpenAsArray(fn, nan_values = True)
+#        
+#        scalar_array = np.ones(np.shape(LULC)) * scalar
+#        #scalar_array[mask_gw] = 0.0
+#        
+#        data *= scalar_array
+#        
+#        if new_var != None:
+#            flder = os.path.join(output_dir, metadata['name'], 'data', new_var)
+#            if not os.path.exists(flder):
+#                os.makedirs(flder)
+#            bla = os.path.split(fn)[1].split('_')[-1]
+#            filen = 'supply_sw_' + bla[0:4] + '_' + bla[4:6] + '.tif'
+#            fn = os.path.join(flder, filen)
+#        becgis.CreateGeoTiff(fn, data, *geo_info)
+#        
+#    if new_var != None:
+#        meta = becgis.SortFiles(flder, [-11,-7], month_position = [-6,-4])[0:2]
+#        return a, meta
+#    else:
+#        return a
     
 def correct_var(metadata, complete_data, output_dir, formula,
-                new_var = None, slope = False):
+                new_var = None, slope = False, bounds = (0, [1.0, 1., 12.])):
     var = split_form(formula)[0][-1]
     a = calc_var_correction(metadata, complete_data, output_dir,
-                            formula = formula, slope = slope, plot = True)
+                            formula = formula, slope = slope, plot = True, bounds = bounds)
     for fn in complete_data[var][0]:
         geo_info = becgis.GetGeoInfo(fn)
         data = becgis.OpenAsArray(fn, nan_values = True) * a[0]

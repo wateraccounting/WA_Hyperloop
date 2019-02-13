@@ -17,19 +17,17 @@ import matplotlib.pyplot as plt
 ###
 basins = dict()
      
-ID = 3
+ID = 14
 basins[ID] = {
             # Give name and ID of basin, set ID equal to key.
-            'name':                     'Ma',
+            'name':                     'VGTB',
             'id':                       ID,
             
             # Give LU-map, SW-file, 
             # folder with subbasin masks (name: subbasinname_ID.tif)
-            'lu':                       r"D:\project_ADB\subproject_WALU\Clipped_final\Basins_Vietnam_ID_{0}.tif".format(ID),
-            'full_basin_mask':          r"D:\project_ADB\subproject_Catchment_Map\Basins_exploded\Raster\ID{0}.tif".format(ID),
-            'masks':                    r"D:\project_ADB\subproject_Catchment_Map\Basins_large\Subbasins_masks\ID{0}".format(ID),
-            'up_basin_masks':           r"D:\project_ADB\subproject_Catchment_Map\upstream_ID3",
-            'alpha_min':                None,
+            'lu':                       r"C:\Users\bec\Desktop\HL_testcase\VGTB\VGTB_LU.tif",
+            'full_basin_mask':          r"C:\Users\bec\Desktop\HL_testcase\VGTB\VGTB_FBM.tif",
+            'masks':                    r"C:\Users\bec\Desktop\HL_testcase\VGTB\VGTB_SBM",
     
             # Give start and enddates growingseasons, classifications to select Harvest Index and Water Content, LU-classification number
             'crops':                    [
@@ -48,17 +46,21 @@ basins[ID] = {
                                   
             # set variables needed for sheet 5 and 1. keys in dico_out and dico_in refer to subbasin-IDs, list to subbasin-IDs to the respective subbasin in or outflow point. Give most upstream subbasins the lowest value, downstream basins high values.
             'recycling_ratio':          0.02,
-            'dico_in':                  {1:[0], 2:[1], 3:[0], 4:[2,3]},
-            'dico_out':                 {1:[2], 2:[4], 3:[4], 4:[0]},
+            'dico_in':                  {1:[], 2:[], 3:[], 4:[1,2]},
+            'dico_out':                 {1:[4], 2:[4], 3:[0], 4:[0]},
             'GRACE':                    r"D:\project_ADB\validation_data\GRACE\basin_{0}_GSFC_mmwe.csv".format(str(ID).zfill(2)),
+            'fraction_xs':              [10, 50, 10, 50],
+            'discharge_out_from_wp':    True, #Value is true if WaterPix is used directly in sheet5 rather than Surfwat
+            'lu_based_supply_split':    False, #Value is True if an initial split in SW/GW supply is done based on landuse class and values in get_dictionnaries
+            'grace_supply_split':       True, #Value is True if GW/SW split is adjusted. Can be true weather or not initial split based on landuse is done. If both of these are False, all supply will be SWsupply
+            'grace_split_alpha_bounds': ([0., 0., 0.], [1.0, 1.0, 12.]), # lower and upper bounds of trigonometric function parameters for splitting suply into sw and gw as ([alpha_l, beta_l, theta_l],[alpha_u, beta_u, theta_u]). ([0., 0., 0.], [1.0, 1.0, 12.]) are the widest bounds allowed. alpha controls the mean, beta the amplitude and theta the phase.
+            'water_year_start_month':   10, #Start month of water year. Used to compute the yearly sheets.
             }
             
 ###
 # Define output folder and WaterPix file
 ###
-output_dir      = r"D:\project_ADB\Catchments\Vietnam"
-waterpix        = r"K:\Products\WATERPIX\out_SEAsia_0point075.nc"
-waterpix_in     = r"K:/Products/WATERPIX/in_SEAsia_0point075.nc"
+output_dir      = r"C:\Users\bec\Desktop\HL_testcase"
 
 ###
 # Define some paths of static data
@@ -75,23 +77,8 @@ global_data["waterpix"]                 = r"D:\Products\Waterpix\SEAsia\output_2
 ###
 # Define paths of folders with temporal tif files (file should be named "*_yyyymm.tif") covering the entire domain (i.e. spanning across all basins)
 ###
-data = dict()
-data["ndm_folder"]          = r"K:\Products\MODIS_17_NDM"
-data["p_folder"]            = r"K:\Products\WATERPIX\Output\Precipitation_M" 
-data["et_folder"]           = r"K:\Products\WATERPIX\Output\Evapotranspiration_M" 
-data["n_folder"]            = r"K:\Products\WATERPIX\Output\RainyDays_M" 
-data["lai_folder"]          = r"K:\Products\WATERPIX\Output\LeafAreaIndex_M" 
-data["etref_folder"]        = r"K:\Products\WATERPIX\Output\ReferenceET_M" 
-data["bf_folder"]           = r"K:\Products\WATERPIX\Output\Baseflow_M" 
-data["sr_folder"]           = r"K:\Products\WATERPIX\Output\SurfaceRunoff_M" 
-data["tr_folder"]           = r"K:\Products\WATERPIX\Output\TotalRunoff_M"
-data["perc_folder"]         = r"K:\Products\WATERPIX\Output\Percolation_M"
-data["dperc_folder"]        = r"K:\Products\WATERPIX\Output\IncrementalPercolation_M" 
-data["supply_total_folder"] = r"K:\Products\WATERPIX\Output\Supply_M"
-data["dro"]                 = r"K:\Products\WATERPIX\Output\IncrementalRunoff_M"
-data["etb_folder"]          = r"K:\Products\WATERPIX\Output\ETblue_M"
-data["etg_folder"]          = r"K:\Products\WATERPIX\Output\ETgreen_M"
-
+#waterpix        = r"K:\Products\WATERPIX\out_SEAsia_0point075.nc"
+#waterpix_in     = r"K:\Products\WATERPIX\in_SEAsia_0point075.nc"
 #data = dict()
 #data["ndm_folder"]          = r"K:\Products\MODIS_17_NDM"
 #data["p_folder"]            = hl.WP_NetCDF_to_Rasters(waterpix_in, 'Precipitation_M', r"K:\Products\WATERPIX\Output")
@@ -110,18 +97,18 @@ data["etg_folder"]          = r"K:\Products\WATERPIX\Output\ETgreen_M"
 #data["etg_folder"]          = hl.WP_NetCDF_to_Rasters(waterpix, 'ETgreen_M', r"K:\Products\WATERPIX\Output")
 
 steps = dict()
-steps['Reproject data']                  = True
-steps['Create Sheet 4 and 6']            = True
+steps['Reproject data']                  = False
+steps['Create Sheet 4 and 6']            = False
 steps['Create Sheet 2']                  = False
 steps['Create Sheet 3']                  = False
-steps['Create Sheet 5']                  = True
-steps['Create Sheet 1']                  = True
+steps['Create Sheet 5']                  = False
+steps['Create Sheet 1']                  = False
 
 #%%
 ###
 # Start hyperloop
 ###
-for ID, metadata in basins.items()[1:2]:
+for ID, metadata in basins.items():
     
     print 'Start basin {0}: {1}'.format(ID, metadata['name'])
     plt.close("all")
@@ -141,7 +128,7 @@ for ID, metadata in basins.items()[1:2]:
         complete_data = sh3.create_sheet3(complete_data, metadata, output_dir)
 
     if steps['Create Sheet 5']:
-        complete_data = sh5.create_sheet5(complete_data, metadata, output_dir, global_data, data)
+        complete_data = sh5.create_sheet5(complete_data, metadata, output_dir, global_data)
 
     if steps['Create Sheet 1']:
         complete_data, all_sh1_results = sh1.create_sheet1(complete_data, metadata, output_dir, global_data)
