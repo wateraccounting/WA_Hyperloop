@@ -13,6 +13,7 @@ from scipy import ndimage
 import pandas as pd
 import subprocess
 import xml.etree.ElementTree as ET
+import datetime
 
 from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.becgis as becgis
@@ -22,7 +23,8 @@ from WA_Hyperloop.paths import get_path
 def create_sheet2(complete_data, metadata, output_dir):
     
     if not np.all(['i' in complete_data.keys(), 't' in complete_data.keys()]):
-        t_files, t_dates, i_files, i_dates = splitET_ITE(complete_data['et'][0], 
+        t_files, t_dates, i_files, i_dates = splitET_ITE(metadata['lu'],
+                                                         complete_data['et'][0], 
                                                          complete_data['et'][1], 
                                                          complete_data['lai'][0], 
                                                          complete_data['lai'][1], 
@@ -34,7 +36,7 @@ def create_sheet2(complete_data, metadata, output_dir):
                                                          complete_data['ndm'][1], 
                                                          os.path.join(output_dir, metadata['name'], 'data'), 
                                                          ndm_max_original = False, 
-                                                         plot_graph = False, 
+                                                         plot_graph = True, 
                                                          save_e = False)
     
         complete_data['i'] = (i_files, i_dates)
@@ -47,7 +49,13 @@ def create_sheet2(complete_data, metadata, output_dir):
     lulc_dict = gd.get_lulcs(lulc_version = '4.0')
     classes_dict = gd.get_sheet2_classes(version = '1.0')
     
-    monthly_csvs, yearly_csvs = create_sheet2_csv(lulc_dict, classes_dict, metadata['lu'], complete_data['et'][0], complete_data['et'][1], complete_data['t'][0], complete_data['t'][1], complete_data['i'][0], complete_data['i'][1], output_dir, catchment_name = metadata['name'], full_years = True)
+    monthly_csvs, yearly_csvs = create_sheet2_csv(lulc_dict, classes_dict, metadata['lu'], 
+                                                  metadata['water_year_start_month'],
+                                                  complete_data['et'][0], complete_data['et'][1], 
+                                                  complete_data['t'][0], complete_data['t'][1], 
+                                                  complete_data['i'][0], complete_data['i'][1], 
+                                                  output_dir, catchment_name = metadata['name'], 
+                                                  full_years = True)
 
     for fh in yearly_csvs:
         output_fh = fh.replace('csv', 'png')
@@ -62,7 +70,9 @@ def create_sheet2(complete_data, metadata, output_dir):
         
     return complete_data
 
-def create_sheet2_csv(lulc_dict, classes_dict, lu_fh, et_fhs, et_dates, t_fhs, t_dates, i_fhs, i_dates, output_dir, catchment_name = None, full_years = True):
+def create_sheet2_csv(lulc_dict, classes_dict, lu_fh, start_month, et_fhs, et_dates, t_fhs,
+                      t_dates, i_fhs, i_dates, output_dir, catchment_name = None,
+                      full_years = True):
     """
     Create sheet 2 csv-files.
     
@@ -122,6 +132,10 @@ def create_sheet2_csv(lulc_dict, classes_dict, lu_fh, et_fhs, et_dates, t_fhs, t
     
     # Check for which dates calculations can be made.
     common_dates = becgis.CommonDates([et_dates, t_dates, i_dates])
+    water_dates = np.copy(common_dates)
+    for w in water_dates:
+        if w.month < start_month:
+            water_dates[water_dates == w] = datetime.date(w.year-1, w.month, w.day)
     
     # Open the landuse-map.
     LULC = becgis.OpenAsArray(lu_fh)
@@ -135,12 +149,13 @@ def create_sheet2_csv(lulc_dict, classes_dict, lu_fh, et_fhs, et_dates, t_fhs, t
         if not os.path.exists(directory_years):
             os.makedirs(directory_years)
         # Check for which years data for 12 months is available.
-        yrs, counts = np.unique([date.year for date in common_dates], return_counts = True)
+#        yrs, counts = np.unique([date.year for date in common_dates], return_counts = True)
+        yrs, counts = np.unique([date.year for date in water_dates], return_counts = True)
         complete_years = [int(year) for year, count in zip(yrs, counts) if count == 12]
         year_count = 1
     
     # Start calculations.
-    for date in common_dates:
+    for (date, w_date) in zip(common_dates, water_dates):
         
         # Create csv-file.
         csv_filename = os.path.join(directory_months, '{0}_{1}_{2}.csv'.format(catchment_name, date.year, month_labels[date.month]))
@@ -159,14 +174,14 @@ def create_sheet2_csv(lulc_dict, classes_dict, lu_fh, et_fhs, et_dates, t_fhs, t
         ET = ET * MapArea / 1000000        
         
         # Add monthly values to yearly totals.
-        if np.all([full_years, (date.year in complete_years), (year_count is 1)]):
+        if np.all([full_years, (w_date.year in complete_years), (year_count is 1)]):
             Tyear = T
             ETyear = ET
             Iyear = I
             year_count += 1
         
         # Add monthly values to yearly totals.
-        elif np.all([full_years, (date.year in complete_years), (year_count is not 1)]):
+        elif np.all([full_years, (w_date.year in complete_years), (year_count is not 1)]):
             Tyear += T
             ETyear += ET
             Iyear += I
@@ -184,12 +199,12 @@ def create_sheet2_csv(lulc_dict, classes_dict, lu_fh, et_fhs, et_dates, t_fhs, t
         csv_file.close()
 
         # Start creating a yearly csv-file.
-        if np.all([full_years, (date.year in complete_years), (year_count is 13)]):
+        if np.all([full_years, (w_date.year in complete_years), (year_count is 13)]):
             # Calcultate evaporation for a whole year.
             Eyear = ETyear - Tyear - Iyear
             
             # Create csv-file for yearly data.
-            csv_filename = os.path.join(directory_years, '{0}_{1}.csv'.format(catchment_name, date.year))
+            csv_filename = os.path.join(directory_years, '{0}_{1}.csv'.format(catchment_name, w_date.year))
             csv_file_year = open(csv_filename, 'wb')
             writer_year = csv.writer(csv_file_year, delimiter=';')
             writer_year.writerow(first_row)
@@ -215,7 +230,7 @@ def create_sheet2_csv(lulc_dict, classes_dict, lu_fh, et_fhs, et_dates, t_fhs, t
     else:
         return csv_fhs
 
-def splitET_ITE(et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_fhs, n_dates, ndm_fhs, ndm_dates, output_dir, ndm_max_original = True, plot_graph = True, save_e = False):
+def splitET_ITE(lu_fh, et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_fhs, n_dates, ndm_fhs, ndm_dates, output_dir, ndm_max_original = True, plot_graph = True, save_e = False):
     """
     Split evapotranspiration into transpiration and interception.
     
@@ -259,7 +274,7 @@ def splitET_ITE(et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_fhs, n_d
     """
     # Check if all maps have the same projection, resolution and No-Data-Value.
     becgis.AssertProjResNDV([et_fhs, lai_fhs, p_fhs, n_fhs, ndm_fhs])
-    
+    LU = becgis.OpenAsArray(lu_fh)
     # Create some constants.
     month_labels = {1:'01',2:'02',3:'03',4:'04',5:'05',6:'06',7:'07',8:'08',9:'09',10:'10',11:'11',12:'12'}
     driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(et_fhs[0])
@@ -276,12 +291,20 @@ def splitET_ITE(et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_fhs, n_d
                 
         ndm_max_fhs = dict()
 
-        footprint = np.ones((50,50), dtype = np.bool)
+        footprint = np.ones((10,10), dtype = np.bool)
         
         for month in np.unique(ndm_months):
             std, mean = becgis.CalcMeanStd(ndm_fhs[ndm_months == month], None, None)
-            ndm_temporal_max = mean + 2 * std
-            ndm_spatial_max = ndimage.maximum_filter(ndm_temporal_max, footprint = footprint)
+            ndm_temporal_mean = mean #+ 2 * std
+            ndm_temporal_mean [np.isnan(ndm_temporal_mean )] = 0.
+            ndm_spatial_max = ndimage.maximum_filter(ndm_temporal_mean, footprint = footprint)
+            ndm_spatial_max = ndm_temporal_mean * 0.0
+            for lu in np.unique(LU):
+                ndm_lu = ndm_temporal_mean * 0.0
+                ndm_lu[LU == lu] = ndm_temporal_mean[LU == lu]
+                intermediate = ndimage.maximum_filter(ndm_lu, footprint = footprint)
+                ndm_spatial_max[LU==lu] = intermediate[LU==lu]
+#            ndm_spatial_max = ndm_temporal_max
             output_fh = os.path.join(ndm_max_folder, 'ndm_max_{0}.tif'.format(month_labels[month]))
             becgis.CreateGeoTiff(output_fh, ndm_spatial_max, driver, NDV, xsize, ysize, GeoT, Projection)
             ndm_max_fhs[month] = output_fh
@@ -322,6 +345,7 @@ def splitET_ITE(et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_fhs, n_d
         # Set boundary conditions.
         I[LAI == 0] = 0.
         I[n == 0] = 0.
+        I[np.isnan(LAI)] = 0.
         
         # Open ET and NDM maps and set NDV pixels to NaN.
         ET = becgis.OpenAsArray(et_fhs[et_dates == date][0], nan_values = True)
@@ -334,7 +358,6 @@ def splitET_ITE(et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_fhs, n_d
             NDMMAX = 1.00 / becgis.OpenAsArray(ndm_max_fhs[date.month], nan_values = True)
     
         # Calculate T.
-        #T = np.minimum((NDM * NDMMAX),np.ones(np.shape(NDM)) * 0.95) * (ET - I)
         T = np.nanmin(((NDM * NDMMAX),np.ones(np.shape(NDM)) * 0.95), axis = 0) * (ET - I)
             
         # Create folder to store maps.
@@ -1546,7 +1569,7 @@ def create_sheet2_png(basin, period, units, data, output, template=False,
     tempout_path = output.replace('.png', '_temporary.svg')
     tree.write(tempout_path)
     subprocess.call([get_path('inkscape'),tempout_path,'--export-png='+output, '-d 300'])
-    os.remove(tempout_path)
+#    os.remove(tempout_path)
 
 
     # Return
