@@ -932,7 +932,7 @@ def MapPixelAreakm(fh, approximate_lengths = False):
     driver, NDV, xsize, ysize, GeoT, Projection = GetGeoInfo(fh)
     AreaColumn = np.zeros((ysize,1))
     for y in range(ysize):
-        P1 = LatLon.LatLon(GeoT[3] + y*GeoT[1], GeoT[0])
+        P1 = LatLon.LatLon(GeoT[3] + y*GeoT[5], GeoT[0])
         P2 = LatLon.LatLon(float(str(P1.lat)), float(str(P1.lon)) + GeoT[1])
         P3 = LatLon.LatLon(float(str(P1.lat)) - GeoT[1], float(str(P1.lon)))
         P4 = LatLon.LatLon(float(str(P1.lat)) - GeoT[1], float(str(P1.lon)) + GeoT[1])
