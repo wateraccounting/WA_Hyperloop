@@ -15,11 +15,15 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 from shutil import copyfile
+import datetime
 
 import WA_Hyperloop.becgis as becgis
-import WA_Hyperloop.get_dictionaries as gd
+import WA_Hyperloop.find_possible_dates as find_possible_dates
 
-def create_csv_yearly(input_folder, output_folder, year_position = [-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 1, minus_header_colums = None):
+def create_csv_yearly(input_folder, output_folder, sheetnb, start_month, 
+                      year_position = [-11,-7], month_position = [-6,-4], 
+                      header_rows = 1, header_columns = 1, 
+                      minus_header_colums = None):
     """
     Calculate yearly csvs from monthly csvs for complete years (i.e. with 12
     months of data available).
@@ -47,7 +51,12 @@ def create_csv_yearly(input_folder, output_folder, year_position = [-11,-7], mon
         Array with filehandles pointing to the generated yearly csv-files.
     """
     fhs, dates = becgis.SortFiles(input_folder, year_position, month_position = month_position, extension = 'csv')[0:2]
-    years, years_counts = np.unique([date.year for date in dates], return_counts = True)
+    water_dates = np.copy(dates)
+    for w in water_dates:
+        if w.month < start_month:
+            water_dates[water_dates == w] = datetime.date(w.year-1, w.month, w.day)
+    
+    years, years_counts = np.unique([date.year for date in water_dates], return_counts = True)
     
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -59,10 +68,10 @@ def create_csv_yearly(input_folder, output_folder, year_position = [-11,-7], mon
     output_fhs = np.array([])
     
     data = list()
-    for date in dates:
+    for date in water_dates:
         if date.year in years[years_counts == 12]:
             
-            reader = csv.reader(open(fhs[dates == date], 'r'), delimiter=';')
+            reader = csv.reader(open(fhs[water_dates == date], 'r'), delimiter=';')
             data.append(np.array(list(reader))[header_rows:,header_columns:minus_header_colums].astype(np.float))
             
             if len(data) == 12:
@@ -70,7 +79,7 @@ def create_csv_yearly(input_folder, output_folder, year_position = [-11,-7], mon
                 yearly_data = np.sum(data_stack, axis=0)
                 data = list()
                 template[header_rows:,header_columns:minus_header_colums] = yearly_data.astype(np.str)
-                fh = os.path.join(output_folder, 'sheet_{0}.csv'.format(date.year))
+                fh = os.path.join(output_folder, 'sheet_{1}_{0}.csv'.format(date.year,sheetnb))
                 csv_file = open(fh, 'wb')
                 writer = csv.writer(csv_file, delimiter=';')
                 for row_index in range(shape[0]):
@@ -182,102 +191,7 @@ def diagnosis_wp(metadata, complete_data, output_dir, waterpix):
     ax2.plot(common_dates, p_mm, common_dates, et_mm, common_dates, ro_mm)
     ax.plot(common_dates, np.cumsum(balance_mm), 'k')
     
-def supply_return_natural_lu(metadata, complete_data):
-    
-    lu_tif = metadata['lu']
-    LULC = becgis.OpenAsArray(lu_tif, nan_values = True)
-    lucs = gd.get_sheet4_6_classes()
-    
-    #new directories:
-    directory_sup = os.path.split(complete_data['supply_total'][0][0])[0]+'_corr'
-    directory_dro = os.path.split(complete_data['dro'][0][0])[0]+'_corr'
-    directory_dperc = os.path.split(complete_data['dperc'][0][0])[0]+'_corr'
-#    directory_perc = os.path.split(complete_data['perc'][0][0])[0]+'_corr'
-    directory_tr = os.path.split(complete_data['tr'][0][0])[0]+'_corr'
-    
-    if not os.path.exists(directory_sup):
-        os.makedirs(directory_sup)
-    if not os.path.exists(directory_dro):
-        os.makedirs(directory_dro)
-    if not os.path.exists(directory_dperc):
-        os.makedirs(directory_dperc)
-#    if not os.path.exists(directory_perc):
-#        os.makedirs(directory_perc)
-    if not os.path.exists(directory_tr):
-        os.makedirs(directory_tr)
-# 
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_tif)
-    
-    common_dates = becgis.CommonDates([complete_data['supply_total'][1], #complete_data['etb'][1], 
-                                      complete_data['dro'][1], 
-                                      complete_data['dperc'][1], #,
-                                      complete_data['tr'][1]])
-    for date in common_dates:        
-        total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
-        SUP = becgis.OpenAsArray(total_supply_tif, nan_values = True)
-        
-        dperc_tif = complete_data['dperc'][0][complete_data['dperc'][1] == date][0]
-        DPERC = becgis.OpenAsArray(dperc_tif, nan_values = True)
-        DPERC[np.isnan(DPERC)] = 0        
-        
-        dro_tif = complete_data['dro'][0][complete_data['dro'][1] == date][0]
-        DRO = becgis.OpenAsArray(dro_tif, nan_values = True)
-        DRO[np.isnan(DRO)] = 0
-        
-#        et_blue_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
-#        ETB = becgis.OpenAsArray(et_blue_tif, nan_values = True)
 
-        tr_tif = complete_data['tr'][0][complete_data['tr'][1] == date][0]
-        TR = becgis.OpenAsArray(tr_tif, nan_values = True)
-        
-#        perc_tif = complete_data['perc'][0][complete_data['perc'][1] == date][0]
-#        PERC = becgis.OpenAsArray(perc_tif, nan_values = True)
-        
-        natural_lus = ['Forests',
-                       'Shrubland',
-                       'Rainfed Crops',
-                       'Forest Plantations',
-                       'Natural Water Bodies',
-                       'Wetlands',
-                       'Natural Grasslands',
-                       'Other (Non-Manmade)']
-
-        natural_lu_codes = []
-        for lu_c in natural_lus:
-            natural_lu_codes.extend(lucs[lu_c])
-
-        for code in natural_lu_codes:
-#            PERC[LULC == code] = PERC[LULC == code] - DPERC[LULC == code]
-            TR[LULC == code] = TR[LULC == code] - DRO[LULC == code]
-#            SUP[LULC == code] = ETB[LULC == code]
-            SUP[LULC == code] = SUP[LULC == code] - DPERC[LULC == code] - DRO[LULC == code]
-            DRO[LULC == code] = 0
-            DPERC[LULC == code] = 0
-        
-        
-        outfile_sup = os.path.join(directory_sup, os.path.basename(total_supply_tif))
-        becgis.CreateGeoTiff(outfile_sup, SUP, driver, NDV, xsize, ysize, GeoT, Projection)
-        
-        outfile_dro = os.path.join(directory_dro, os.path.basename(dro_tif))
-        becgis.CreateGeoTiff(outfile_dro, DRO, driver, NDV, xsize, ysize, GeoT, Projection)
-
-        outfile_dperc = os.path.join(directory_dperc, os.path.basename(dperc_tif))
-        becgis.CreateGeoTiff(outfile_dperc, DPERC, driver, NDV, xsize, ysize, GeoT, Projection)
-        
-#        outfile_perc = os.path.join(directory_perc, os.path.basename(perc_tif))
-#        becgis.CreateGeoTiff(outfile_perc, PERC, driver, NDV, xsize, ysize, GeoT, Projection)
-
-        outfile_tr = os.path.join(directory_tr, os.path.basename(tr_tif))
-        becgis.CreateGeoTiff(outfile_tr, TR, driver, NDV, xsize, ysize, GeoT, Projection)
-
-
-    complete_data['supply_total'] = becgis.SortFiles(directory_sup, [-10,-6], month_position = [-6,-4])[0:2]
-    complete_data['dro'] = becgis.SortFiles(directory_dro, [-10,-6], month_position = [-6,-4])[0:2]
-    complete_data['dperc'] = becgis.SortFiles(directory_dperc, [-10,-6], month_position = [-6,-4])[0:2]
-#    complete_data['perc'] = becgis.SortFiles(directory_perc, [-10,-6], month_position = [-6,-4])[0:2]
-    complete_data['tr'] = becgis.SortFiles(directory_tr, [-10,-6], month_position = [-6,-4])[0:2]
-
-    return complete_data
 #def diagnosis(metadata, complete_data, output_dir, all_results, waterpix):
 #
 #    output_dir = os.path.join(output_dir, metadata['name'], "diagnosis")
@@ -591,20 +505,14 @@ def sort_data_short(output_dir, metadata):
     
     return complete_data
 
-def sort_data(data, metadata, global_data, output_dir, scale = None):
+def sort_data(data, metadata, global_data, output_dir):
     output_dir = os.path.join(output_dir, metadata['name'])
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
     complete_data = dict()
     for key in data.keys():
-        if scale != None:
-            if key == 'p_folder':
-                complete_data = sort_var(data, metadata, global_data, output_dir, key, complete_data, scale = scale)
-            else:
-                complete_data = sort_var(data, metadata, global_data, output_dir, key, complete_data)
-        else:
-            complete_data = sort_var(data, metadata, global_data, output_dir, key, complete_data)
+        complete_data = sort_var(data, metadata, global_data, output_dir, key, complete_data)
 
     #complete_data['fractions'] = sh5.calc_fractions(complete_data['p'][0], complete_data['p'][1], os.path.join(output_dir, 'data', 'fractions'), global_data['dem'], metadata['lu'])
 #
@@ -655,15 +563,38 @@ def WP_NetCDF_to_Rasters(input_nc, ras_variable, root_dir,
     return out_dir
 
 
-def sort_var(data, metadata, global_data, output_dir, key, complete_data, time_var = 'time_yyyymm', scale = None):
+#def sort_var(data, metadata, global_data, output_dir, key, complete_data, time_var = 'time_yyyymm'):
+#    print key
+#    if time_var == 'time_yyyymm':
+#        try:
+#            files, dates = becgis.SortFiles(data[key], [-10,-6], month_position = [-6,-4])[0:2]
+#        except:
+#            files, dates = becgis.SortFiles(data[key], [-14,-10], month_position = [-9,-7])[0:2]
+#    else:
+#        files, dates = becgis.SortFiles(data[key], [-8,-4])[0:2]
+#    var_name = key.split('_folder')[0]
+#    files = becgis.MatchProjResNDV(metadata['lu'], files, os.path.join(output_dir, 'data', var_name), resample = 'near', dtype = 'float32')
+#    complete_data[var_name] = (files, dates)
+#    return complete_data
+
+def sort_var(data, metadata, global_data, output_dir, key, complete_data, time_var = 'time_yyyymm'):
+    print key
+    
+    str_template = glob.glob(os.path.join(data[key], '*.tif'))[0]
+    (year_pos, month_pos) = find_possible_dates.find_possible_dates_negative(str_template)
+    
     if time_var == 'time_yyyymm':
-        files, dates = becgis.SortFiles(data[key], [-10,-6], month_position = [-6,-4])[0:2]
+        files, dates = becgis.SortFiles(data[key], year_pos, month_position = month_pos)[0:2]
     else:
-        files, dates = becgis.SortFiles(data[key], [-8,-4])[0:2]
+        files, dates = becgis.SortFiles(data[key], year_pos)[0:2]
     var_name = key.split('_folder')[0]
-    files = becgis.MatchProjResNDV(metadata['lu'], files, os.path.join(output_dir, 'data', var_name), resample = 'near', dtype = 'float32', scale = scale)
+    files = becgis.MatchProjResNDV(metadata['lu'], files, os.path.join(output_dir, 'data', var_name), resample = 'near', dtype = 'float32')
     complete_data[var_name] = (files, dates)
     return complete_data
+
+
+
+
 
 def Spatial_Reference(epsg, return_string=True):
     srs = osr.SpatialReference()
