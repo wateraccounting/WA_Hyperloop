@@ -192,7 +192,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     # Correct sw/gw split to match with GRACE storage
     if grace_supply_split: 
         inp = metadata['grace_split_alpha_bounds']
-        assert np.all(inp[0] <= inp[1]), "invalid bounds"
+        assert np.all(inp[0] < inp[1]), "invalid bounds"
         bounds = (np.clip(inp[0], [0.,0.,0.], [1.,1.,12.]), np.clip(inp[1], [0.,0.,0.], [1.,1.,12.]))
 
         a, complete_data['supply_sw'] = correct_var(metadata, complete_data,
