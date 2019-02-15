@@ -47,12 +47,12 @@ basins[ID] = {
             'recycling_ratio':          0.02,
             'dico_in':                  {1:[], 2:[], 3:[], 4:[1,2]},
             'dico_out':                 {1:[4], 2:[4], 3:[0], 4:[0]},
-            'GRACE':                    r"D:\project_ADB\validation_data\GRACE\basin_{0}_GSFC_mmwe.csv".format(str(ID).zfill(2)),
+            'GRACE':                    r"C:\Users\bec\Desktop\HL_testcase\VGTB\basin_14_GSFC_mmwe.csv",
             'fraction_xs':              [10, 50, 10, 50],
             'discharge_out_from_wp':    True, #Value is true if WaterPix is used directly in sheet5 rather than Surfwat
             'lu_based_supply_split':    False, #Value is True if an initial split in SW/GW supply is done based on landuse class and values in get_dictionnaries
             'grace_supply_split':       True, #Value is True if GW/SW split is adjusted. Can be true weather or not initial split based on landuse is done. If both of these are False, all supply will be SWsupply
-            'grace_split_alpha_bounds': ([0., 0., 0.], [1.0, 1.0, 12.]), # lower and upper bounds of trigonometric function parameters for splitting suply into sw and gw as ([alpha_l, beta_l, theta_l],[alpha_u, beta_u, theta_u]). ([0., 0., 0.], [1.0, 1.0, 12.]) are the widest bounds allowed. alpha controls the mean, beta the amplitude and theta the phase.
+            'grace_split_alpha_bounds': ([0.0, 0.5, 1.], [1., 1., 12.]), # lower and upper bounds of trigonometric function parameters for splitting suply into sw and gw as ([alpha_l, beta_l, theta_l],[alpha_u, beta_u, theta_u]). ([0., 0., 1.], [1.0, 1.0, 12.]) are the widest bounds allowed. alpha controls the mean, beta the amplitude and theta the phase.
             'water_year_start_month':   10, #Start month of water year. Used to compute the yearly sheets.
             'ndm_max_original':         False, # True will use original method to determine NDM_max (based on entire domain), false will use a different method dependent on nearby pixels of the same lu-category.
             }
@@ -98,7 +98,7 @@ global_data["waterpix"]                 = r"D:\Products\Waterpix\SEAsia\output_2
 
 steps = dict()
 steps['Reproject data']                  = False
-steps['Create Sheet 4 and 6']            = False
+steps['Create Sheet 4 and 6']            = True
 steps['Create Sheet 2']                  = False
 steps['Create Sheet 3']                  = False
 steps['Create Sheet 5']                  = False

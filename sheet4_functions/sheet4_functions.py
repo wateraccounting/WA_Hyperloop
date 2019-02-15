@@ -23,7 +23,7 @@ from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.get_dictionaries as gd
 from WA_Hyperloop.paths import get_path
 from WA_Hyperloop.grace_tr_correction import correct_var
-from WA_Hyperloop.sup_is_etb_in_natural_lu import bf_reduction_with_gwsup
+#from WA_Hyperloop.sup_is_etb_in_natural_lu import bf_reduction_with_gwsup
 
 def sw_ret_wpix(non_consumed_dsro, non_consumed_dperc, lu, ouput_dir_ret_frac):
     DSRO = becgis.OpenAsArray(non_consumed_dsro, nan_values = True)
@@ -45,7 +45,6 @@ def multiply_raster_by_c(sw_supply_fraction_tif, alpha):
     SW_FRAC = becgis.OpenAsArray(sw_supply_fraction_tif, nan_values = True)
     SW_FRAC = SW_FRAC * alpha
     becgis.CreateGeoTiff(sw_supply_fraction_tif, SW_FRAC, *geo_info)
-    return
     
 def calc_difference(ds1, ds2, output_folder):
     
@@ -198,13 +197,11 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
 
         a, complete_data['supply_sw'] = correct_var(metadata, complete_data,
                         os.path.split(output_dir)[0], 'p-et-tr+supply_swa',
-                        slope = True, new_var = 'supply_sw', bounds = bounds)
+                        'supply_sw', slope = True,  bounds = bounds)
 
-        print '-----> alpha = {0}'.format(a[0])
+        print '-----> alpha = {0}, beta = {1}, theta = {2}'.format(a[0], a[1], a[2])
 
-        multiply_raster_by_c(sw_supply_fraction_tif, a[0]) #claire - update sw_fraction_tif
-
-
+        # multiply_raster_by_c(sw_supply_fraction_tif, a[0]) #claire - update sw_fraction_tif
     else: 
         complete_data['supply_sw'] = complete_data['supply_swa']
         
