@@ -101,8 +101,10 @@ def endofmonth(dates):
     
 
 def calc_var_correction(metadata, complete_data, output_dir,
-                        formula = 'p-et-tr+supply_total', plot = True,
-                        slope = False, bounds = (0, [1.0, 1., 12.])):
+                        formula = 'p-et-tr+supply_swa', plot = True,
+                        slope = False, bounds = ([0.0, 0.0, 1.], [1., 1., 12.])):
+    
+    bounds = np.array(bounds)
     
     if plot:
         output_dir = os.path.join(output_dir)
@@ -218,8 +220,16 @@ def calc_var_correction(metadata, complete_data, output_dir,
         ax.set_facecolor('lightgray')  
         plt.plot(*grace, label = 'GRACE', color = 'r')
         plt.plot(*calc_polyfit(grace, order = 1), color = 'r', linestyle = ':')
-        plt.plot(grace[0], func(X, a[0], a[1], a[2], slope = False), color = 'k', label = 'WAplus')
-        plt.plot(*calc_polyfit((grace[0], func(X, a[0], a[1], a[2], slope = False)), order = 1), color = 'k', linestyle = ':')
+        
+        if metadata['lu_based_supply_split']:
+            plt.plot(grace[0], func(X, 0., 1., 1., slope = False), color = 'darkblue', label = 'WAplus (lu)')
+            plt.plot(*calc_polyfit((grace[0], func(X, 0., 1., 1., slope = False)), order = 1), color = 'darkblue', linestyle = ':')
+            plt.plot(grace[0], func(X, a[0], a[1], a[2], slope = False), color = 'k', label = 'WAplus (lu + grace)')
+            plt.plot(*calc_polyfit((grace[0], func(X, a[0], a[1], a[2], slope = False)), order = 1), color = 'k', linestyle = ':')
+        else:
+            plt.plot(grace[0], func(X, a[0], a[1], a[2], slope = False), color = 'k', label = 'WAplus (grace)')
+            plt.plot(*calc_polyfit((grace[0], func(X, a[0], a[1], a[2], slope = False)), order = 1), color = 'k', linestyle = ':')            
+            
         plt.legend()
         plt.xlim([grace[0][0], grace[0][-1]])
         plt.ylabel('dS/dt [mm/month]')
