@@ -57,7 +57,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     
     output_fh_in, output_fh_out = create_sheet1_in_outflows(os.path.join(output_dir, metadata['name'], "sheet5", "sheet5_monthly"), metadata, output_folder) 
     outflow_values, outflow_dates = sum_ts(np.array([output_fh_out]))
-    
+    transfer_values, transfer_dates = get_transfers(os.path.join(output_dir, metadata['name'], "sheet5", "sheet5_monthly"))
     
     if output_fh_in:
         inflow_values, inflow_dates = sum_ts(np.array([output_fh_in]))
@@ -88,14 +88,15 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
         
         # Select the required outflow value.
         q_outflow = outflow_values[outflow_dates == date][0]
-
+        q_transfer = np.array(transfer_values)[np.array(transfer_dates) == date][0]
         if output_fh_in:
             q_inflow = inflow_values[inflow_dates == date][0]
         else:
             q_inflow = 0.0
         
         # Calculate the sheet values.
-        results = calc_sheet1(entries, metadata['lu'], sheet1_lucs, metadata['recycling_ratio'], q_outflow, q_out_avg, output_folder, q_in_sw = q_inflow)
+        results = calc_sheet1(entries, metadata['lu'], sheet1_lucs, metadata['recycling_ratio'], q_outflow, q_out_avg, output_folder,
+                              q_in_sw=q_inflow, q_out_sw=q_transfer)
         
         # Save the results of the current month.
         all_results.append(results)    
@@ -112,7 +113,11 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     plot_parameter(all_results, common_dates, metadata['name'], output_folder, 'utilizable_outflow')
     
     # Create yearly csv-files.
-    yearly_csv_fhs = hl.create_csv_yearly(os.path.split(output_fh)[0], os.path.join(output_folder, "sheet1_yearly"), 1, metadata['water_year_start_month'], year_position = [-11,-7], month_position = [-6,-4], header_rows = 1, header_columns = 3)
+    yearly_csv_fhs = hl.create_csv_yearly(os.path.split(output_fh)[0], 
+                                          os.path.join(output_folder, "sheet1_yearly"), 
+                                          1, metadata['water_year_start_month'], 
+                                          year_position = [-11,-7], month_position = [-6,-4], 
+                                          header_rows = 1, header_columns = 3)
     
     # Plot yearly sheets.
     for csv_fh in yearly_csv_fhs:
@@ -411,7 +416,7 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
 
     outflow = non_cons_water + non_rec_flow + basin_transfers
 
-    q_sw_out = sw_mrs_o + sw_tri_o + sw_usw_o + sw_flo_o
+    q_sw_out = sw_mrs_o + sw_tri_o + sw_usw_o + sw_flo_o 
     q_gw_out = gw_nat_o + gw_uti_o
 
     xml_txt_box = tree.findall('''.//*[@id='outflow']''')[0]
@@ -456,7 +461,7 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     tempout_path = output.replace('.png', '_temporary.svg')
     tree.write(tempout_path)
     subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output, '-d 300'])
-    os.remove(tempout_path)
+#    os.remove(tempout_path)
 
     # Return
     return output
@@ -487,7 +492,7 @@ def create_sheet1_in_outflows(sheet5_csv_folder, metadata, output_dir):
         df = pd.read_csv(f,sep=';')
         df_basin = df.loc[df.SUBBASIN == 'basin'] 
         df_inf = df_basin.loc[df_basin.VARIABLE == 'Inflow']
-        df_tran = df_basin.loc[df_basin.VARIABLE == 'Interbasin Transfer']
+#        df_tran = df_basin.loc[df_basin.VARIABLE == 'Interbasin Transfer']
         df_outf = df_basin.loc[df_basin.VARIABLE == 'Outflow: Total']
 #        writer_in.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %(float(df_inf.VALUE) + (float(df_tran.VALUE)))])
         writer_in.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %(float(df_inf.VALUE))])
@@ -502,7 +507,21 @@ def create_sheet1_in_outflows(sheet5_csv_folder, metadata, output_dir):
     
     return output_fh_in, output_fh_out
     
-
+def get_transfers(sheet5_csv_folder):
+    csv_files = glob.glob(sheet5_csv_folder+'\\sheet5_*.csv')
+    transfer_data = []
+    transfer_date = []
+    for f in csv_files:
+        fn = os.path.split(f)[1]
+        year = int(fn.split('sheet5_')[1].split('.csv')[0][:4])
+        month = int(fn.split('sheet5_')[1].split('.csv')[0][-2:])
+        date = datetime.date(year,month,1)
+        df = pd.read_csv(f,sep=';')
+        df_basin = df.loc[df.SUBBASIN == 'basin'] 
+        df_tran = df_basin.loc[df_basin.VARIABLE == 'Interbasin Transfer'].VALUE
+        transfer_data.append(-float(df_tran))
+        transfer_date.append(date)
+    return transfer_data, transfer_date
 
 def get_ts(all_results, key):
     """
@@ -703,7 +722,8 @@ def calc_utilizedflow(incremental_et, other, non_recoverable, other_fractions, n
     
     return uf_plu, uf_ulu, uf_mlu, uf_mwu
 
-def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_avg, output_folder, q_in_sw, q_in_gw = 0., q_in_desal = 0., q_out_sw = 0., q_out_gw = 0.):
+def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_avg, 
+                output_folder, q_in_sw, q_in_gw = 0., q_in_desal = 0., q_out_sw = 0., q_out_gw = 0.):
     """
     Calculate the required values to plot Water Accounting Plus Sheet 1.
     
@@ -756,7 +776,8 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     
     ET = np.nansum([ETblue, ETgreen], axis = 0)
     
-    results['et_advection'], results['p_advection'], results['p_recycled'], results['dS'] = calc_wb(P, ET, q_outflow, recycling_ratio, q_in_sw = q_in_sw, q_in_gw = q_in_gw, q_in_desal = q_in_desal, q_out_sw = q_out_sw, q_out_gw = q_out_gw)
+    results['et_advection'], results['p_advection'], results['p_recycled'], results['dS'] = calc_wb(P, ET, q_outflow, recycling_ratio, 
+           q_in_sw = q_in_sw, q_in_gw = q_in_gw, q_in_desal = q_in_desal, q_out_sw = q_out_sw, q_out_gw = q_out_gw)
 
     results['non_recoverable'] = gray_water_fraction * (q_outflow + q_out_sw) # Mekonnen and Hoekstra (2015), Global Gray Water Footprint and Water Pollution Levels Related to Anthropogenic Nitrogen Loads to Fresh Water
     results['reserved_outflow_demand'] = q_out_avg * ewr_percentage
@@ -889,10 +910,10 @@ def create_csv(results, output_fh):
     writer.writerow(['OUTFLOW', 'ET INCREMENTAL', 'Manmade', '{0}'.format(results['manmade'])])  
     writer.writerow(['OUTFLOW', 'ET INCREMENTAL', 'Natural', '{0}'.format(results['natural'])])
     writer.writerow(['OUTFLOW', 'SURFACE WATER', 'Main riverstem', '{0}'.format(results['q_outflow'])])
-    writer.writerow(['OUTFLOW', 'SURFACE WATER', 'Tributaries',  '{0}'.format(results['q_out_sw'])])  
+    writer.writerow(['OUTFLOW', 'SURFACE WATER', 'Tributaries',  0.])  
     writer.writerow(['OUTFLOW', 'SURFACE WATER', 'Utilized surface water', 0.])  
     writer.writerow(['OUTFLOW', 'SURFACE WATER', 'Flood', 0.])
-    writer.writerow(['OUTFLOW', 'SURFACE WATER', 'Interbasin transfer', 0.])
+    writer.writerow(['OUTFLOW', 'SURFACE WATER', 'Interbasin transfer', '{0}'.format(results['q_out_sw'])])
     writer.writerow(['OUTFLOW', 'GROUNDWATER', 'Natural', '{0}'.format(results['q_out_gw'])]) 
     writer.writerow(['OUTFLOW', 'GROUNDWATER', 'Utilized', 0.])
     writer.writerow(['OUTFLOW', 'OTHER', 'Non-utilizable', '{0}'.format(results['non_utilizable_outflow'])])
