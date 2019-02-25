@@ -113,19 +113,20 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                 wth = np.append(wth, np.nansum(W))
 
             # Add inflow from outside sources to available runoff
+            # Add or remove interbasin transfers as well
             if 0 in in_list:
                 if len(metadata['masks'][sb_code][2]) == 0:
                     print 'Warning, missing inflow textfile, proceeding without added inflow'
                 else:
                     added_inflow[sb_code] = 0
-                    for inflow_file in metadata['masks'][2]:
+                    for inflow_file in metadata['masks'][sb_code][2]:
                         added_inflow[sb_code] += read_inflow_file(inflow_file, date_list)
                 AVAIL_sb += added_inflow[sb_code]
                 
             if len(metadata['masks'][sb_code][3]) > 0: # check if any interbasin transfers are listed
-                for transfer_file in metadata['masks'][3]:
+                for transfer_file in metadata['masks'][sb_code][3]:
                     interbasin_transfers[sb_code] += read_inflow_file(transfer_file, date_list)
-                AVAIL_sb += added_inflow[sb_code]         
+                AVAIL_sb += interbasin_transfers[sb_code]         
 
             inflow = np.zeros(len(AVAIL_sb))
             for inflow_sb in in_list[in_list != 0]:
@@ -228,7 +229,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
         base_ro_fh = base_ro_fhs[np.where([datestr2 in base_ro_fhs[i] for i in range(len(base_ro_fhs))])[0][0]]
         ro_fh = ro_fhs[np.where([datestr2 in ro_fhs[i] for i in range(len(ro_fhs))])[0][0]]
 
-        withdr_fh = withdr_fhs[np.where([datestr1 in withdr_fhs[i] for i in range(len(withdr_fhs))])[0][0]]
+        withdr_fh = withdr_fhs[np.where([datestr2 in withdr_fhs[i] for i in range(len(withdr_fhs))])[0][0]]
 
         return_gw_sw_fh = return_gw_sw_fhs[np.where([datestr2 in return_gw_sw_fhs[i] for i in range(len(return_gw_sw_fhs))])[0][0]]
         return_sw_sw_fh = return_sw_sw_fhs[np.where([datestr2 in return_sw_sw_fhs[i] for i in range(len(return_sw_sw_fhs))])[0][0]]
@@ -287,7 +288,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                                minus_header_colums=-1)
 
     for fh in fhs:
-        ystr = os.path.basename(fh).split('_')[1][:4]
+        ystr = os.path.basename(fh).split('_')[-1][:4]
         output = fh.replace('csv', 'png')
         create_sheet5_svg(metadata['name'], sb_codes, ystr, 'km3',
                           fh, output, svg_template, smart_unit=False)
@@ -869,7 +870,10 @@ def sum_subbasins(data_fh, sb_fhs_code_names):
 def read_inflow_file(inflowtext, date_list):
     df = pd.read_csv(inflowtext, delimiter=' ', skiprows=1, header=None,
                      names=['date', 'inflow'])
-    date_py = np.array([datetime.datetime.fromordinal(dt) for dt in df.date])
+    try:
+        date_py = np.array([datetime.datetime.fromordinal(dt) for dt in df.date])
+    except:
+        date_py = np.array([datetime.datetime.strptime(dt,'%d-%m-%Y') for dt in df.date])
     date_index = [np.where(date_py == k)[0][0] for k in date_list]
     inflows = np.array(df.inflow)[date_index]
     return inflows
