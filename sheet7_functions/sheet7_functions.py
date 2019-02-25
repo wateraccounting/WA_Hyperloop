@@ -18,6 +18,7 @@ import wa.General.data_conversions as DC
 
 import WA_Hyperloop.becgis as becgis
 from WA_Hyperloop.paths import get_path
+from WA_Hyperloop import hyperloop as hl
 
 #%%
 
@@ -25,7 +26,7 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
     template_m = get_path('sheet7m_svg')
     template_y = get_path('sheet7y_svg')
     lu_fh = metadata['lu']
-    output_folder = os.path.join(output_dir, metadata['name'], 'sheet7_test')
+    output_folder = os.path.join(output_dir, metadata['name'], 'sheet7')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     recy_ratio = metadata['recycling_ratio']
@@ -144,25 +145,19 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
         output_fh = output_folder +"\\sheet7_monthly\\sheet7_"+datestr1+".csv"
         create_csv(results[ystr][mstr], output_fh)
         output = output_folder + '\\sheet7_monthly\\sheet7_'+datestr1+'.png'
-        create_sheet7_svg(metadata['name'], datestr1, output_fh, output, template=template_m)
+        create_sheet7_svg(metadata['name'], datestr1, output_fh, output, 
+                          template=template_m)
 
-    for year in results.keys():
-        result_yearly = Vividict()
-        sum_var = ['tot_runoff', 'gw_rech', 'feed_landscape', 'feed_incremental',
-                   'fuel_incremental', 'fuel_landscape', 'root_storage',
-                   'atm_recycl_landscape', 'atm_recycl_incremental']
-        mean_var = ['root_storage', 'baseflow']
-        for month in results[str(year)].keys():
-            for variable in sum_var:
-                for lu in results[str(year)][month][variable].keys():
-                    result_yearly[variable][lu] = np.nansum([results[str(year)][month][variable][lu] for month in results[str(year)].keys()])
-            for variable in mean_var:
-                for lu in results[str(year)][month][variable].keys():
-                    result_yearly[variable][lu] = np.nanmean([results[str(year)][month][variable][lu] for month in results[str(year)].keys()])
-        output_fh = output_folder +"\\sheet7_yearly\\sheet7_%04d.csv" %int(year)
-        create_csv(result_yearly, output_fh)
-        output = output_folder + '\\sheet7_yearly\\sheet7_%04d.png' %int(year)
-        create_sheet7_svg(metadata['name'], "%04d" %(d.year), output_fh, output, template=template_y)
+    fhs = hl.create_csv_yearly(os.path.join(output_folder, "sheet7_monthly"),
+                               os.path.join(output_folder, "sheet7_yearly"), 7,
+                               metadata['water_year_start_month'],
+                               year_position=[-11, -7], month_position=[-6, -4],
+                               header_rows=1, header_columns=3,
+                               minus_header_colums=-1)
+    for csv_fh in fhs:
+        year = csv_fh[-8:-4] 
+        create_sheet7_svg(metadata['name'], year, 
+                          csv_fh, csv_fh.replace('.csv','.png'), template=template_y)
 
 
 ## PROVISIONING SERVICES
@@ -478,6 +473,7 @@ def create_csv(results, output_fh):
 
     csv_file = open(output_fh, 'wb')
     writer = csv.writer(csv_file, delimiter=';')
+    
     writer.writerow(first_row)
     lu_classes = ['PROTECTED', 'UTILIZED', 'MODIFIED', 'MANAGED']
     for lu_class in lu_classes:
@@ -499,11 +495,11 @@ def create_csv(results, output_fh):
                          '{0:.3f}'.format(results['baseflow'][lu_class]), 'km3'])
     #    writer.writerow(['PROTECTED','Groundwater Recharge', 'SURFACE WATER', 'Flood', 0.])
         writer.writerow([lu_class, 'Root Zone Water Storage', 'Non-consumptive',
-                         '{0:.3f}'.format(results['root_storage'][lu_class])])
+                         '{0:.3f}'.format(results['root_storage'][lu_class]), 'km3'])
         writer.writerow([lu_class, 'Atmospheric Water Recycling', 'Incremental ET natural',
-                         '{0:.3f}'.format(results['atm_recycl_incremental'][lu_class])])
+                         '{0:.3f}'.format(results['atm_recycl_incremental'][lu_class]),'km3'])
         writer.writerow([lu_class, 'Atmospheric Water Recycling', 'Landscape ET',
-                         '{0:.3f}'.format(results['atm_recycl_landscape'][lu_class])])
+                         '{0:.3f}'.format(results['atm_recycl_landscape'][lu_class]),'km3'])
     csv_file.close()
 
 def create_sheet7_svg(basin, period, data, output, template=False):
