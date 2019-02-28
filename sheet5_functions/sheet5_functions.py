@@ -92,8 +92,8 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
             in_list = np.array(metadata['dico_in'][sb_code])
             out_list = np.array(metadata['dico_out'][sb_code])
             AVAIL_sb = np.array([])
-            ro = np.array([])
-            wth = np.array([])
+            ro = []
+            wth = []
             interbasin_transfers[sb_code] = np.zeros(len(date_list))
             mask = becgis.OpenAsArray(temp_sb, nan_values=True)
 
@@ -109,8 +109,8 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
 
                 AVAIL = np.nansum(RO)-np.nansum(W)
                 AVAIL_sb = np.append(AVAIL_sb, AVAIL)
-                ro = np.append(ro, np.nansum(RO))
-                wth = np.append(wth, np.nansum(W))
+                ro.append(np.nansum(RO))
+                wth.append(np.nansum(W))
 
             # Add inflow from outside sources to available runoff
             # Add or remove interbasin transfers as well
@@ -132,6 +132,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
             for inflow_sb in in_list[in_list != 0]:
                 AVAIL_sb += discharge_sum[sb_codes[inflow_sb-1]]
                 inflow += discharge_sum[sb_codes[inflow_sb-1]]
+            inflow += added_inflow[sb_code]
 
             deltaS = np.zeros(len(AVAIL_sb))
             for i in np.where(AVAIL_sb < 0):
@@ -147,7 +148,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                 discharge_sum[sb_code] = discharge_sum[sb_code] * 0
                 
             else:
-                ds = deltaS
+                ds = np.copy(deltaS)
                 ro = np.array(ro)
                 ds = np.array(ds)
                 wth = np.array(wth)
@@ -167,7 +168,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                             ds[prev_end:start] = np.min((avail_per_month, -deltaS_season * weight_per_month), axis=0)
                             discharge_sum[sb_code][prev_end:start] = discharge_sum[sb_code][prev_end:start] - ds[prev_end:start]
                         else:
-                            ds[prev_end:start] = -deltaS_season * weight_per_month
+                            ds[prev_end:start] = ds[prev_end:start] - deltaS_season * weight_per_month
                             discharge_sum[sb_code][prev_end:start] = discharge_sum[sb_code][prev_end:start] - ds[prev_end:start]
                     prev_end = end + 1
                 deltaSW[sb_code] = ds
