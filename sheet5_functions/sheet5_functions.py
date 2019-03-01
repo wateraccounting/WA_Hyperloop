@@ -218,6 +218,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
             results[ystr][mstr]['utilizable_outflow'][sb] = split_discharge[ystr][mstr]['utilizable_outflow'][sb]
             results[ystr][mstr]['non_recoverable_outflow'][sb] = split_discharge[ystr][mstr]['non_recoverable_outflow'][sb]
             results[ystr][mstr]['deltaS'][sb] = deltaSW[sb][dt]
+            results[ystr][mstr]['interbasin_transfers'][sb] = interbasin_transfers[sb][dt]
         for s in range(1, len(sb_codes)+1):
             outflow = {}
             outflow = split_discharge[ystr][mstr]['total_outflow']
@@ -242,8 +243,6 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
 
         results[ystr][mstr]['withdrawls'] = lu_type_sum_subbasins(withdr_fh, lu_fh, man_dict, sb_fhs_code_names)
 
-        results["%04d" %(d.year)]["%02d" %(d.month)]['interbasin_transfers'][sb] = interbasin_transfers[sb][dt]
-
         results[ystr][mstr]['return_gw_sw'] = sum_subbasins(return_gw_sw_fh, sb_fhs_code_names)
         results[ystr][mstr]['return_sw_sw'] = sum_subbasins(return_sw_sw_fh, sb_fhs_code_names)
 
@@ -256,7 +255,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
         results[ystr][mstr]['withdrawls']['basin']['man'] = np.nansum([results[ystr][mstr]['withdrawls'][k]['man'] for  k in sb_codes])
         results[ystr][mstr]['withdrawls']['basin']['natural'] = np.nansum([results[ystr][mstr]['withdrawls'][k]['natural'] for k in sb_codes])
 
-        results["%04d" %(d.year)]["%02d" %(d.month)]['interbasin_transfers']['basin'] = np.nansum([results["%04d" %(d.year)]["%02d" %(d.month)]['interbasin_transfers'][k] for k in sb_codes])
+        results[ystr][mstr]['interbasin_transfers']['basin'] = np.nansum([results[ystr][mstr]['interbasin_transfers'][k] for k in sb_codes])
         results[ystr][mstr]['deltaS']['basin'] = np.nansum([results[ystr][mstr]['deltaS'][k] for k in sb_codes])
 
         results[ystr][mstr]['return_sw_sw']['basin'] = np.nansum([results[ystr][mstr]['return_sw_sw'][k] for k in sb_codes])
