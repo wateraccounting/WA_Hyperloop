@@ -72,7 +72,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     if output_fh_in:
         common_dates = becgis.CommonDates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1], outflow_dates, inflow_dates])
     else:
-        common_dates = becgis.CommonDates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1]]) #, outflow_dates])
+        common_dates = becgis.CommonDates([complete_data['tr'][1],complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1]]) #, outflow_dates])
     
     # Create list to store results.
     all_results = list()
