@@ -411,11 +411,11 @@ def get_sheet4_6_classes(version = '1.0'):
     'Natural Water Bodies': [4, 19, 23, 24],
     'Wetlands':             [5, 25, 30, 31],
     'Natural Grasslands':   [3, 13, 16, 20],
-    'Other (Non-Manmade)':  [6, 7, 18, 21, 22, 26, 27, 28, 29, 32, 45, 46, 48, 49, 50, 51],
+    'Other (Non-Manmade)':  [6, 7, 18, 21, 22, 26, 27, 28, 29, 32, 45, 46, 47,48, 49, 50, 51],
     'Irrigated crops':      [52,53,54,55,56,57,58,59,60,61,62],
     'Managed water bodies': [63,74,75,77],
     'Aquaculture':          [65],
-    'Residential':          [47, 66, 68, 72],
+    'Residential':          [66, 68, 72],
     'Greenhouses':          [64],
     'Other':                [68,69,70,71,76,78]}
     
