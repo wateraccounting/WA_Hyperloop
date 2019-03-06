@@ -414,7 +414,7 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
 
     # Blue box (right)
 
-    outflow = non_cons_water + non_rec_flow + basin_transfers
+    outflow = non_cons_water + non_rec_flow 
 
     q_sw_out = sw_mrs_o + sw_tri_o + sw_usw_o + sw_flo_o 
     q_gw_out = gw_nat_o + gw_uti_o
@@ -494,6 +494,8 @@ def create_sheet1_in_outflows(sheet5_csv_folder, metadata, output_dir):
         df_inf = df_basin.loc[df_basin.VARIABLE == 'Inflow']
 #        df_tran = df_basin.loc[df_basin.VARIABLE == 'Interbasin Transfer']
         df_outf = df_basin.loc[df_basin.VARIABLE == 'Outflow: Total']
+#        df_nonrecov = df_basin.loc[df_basin.VARIABLE == 'Outflow: Non Recoverable']
+        
 #        writer_in.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %(float(df_inf.VALUE) + (float(df_tran.VALUE)))])
         writer_in.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %(float(df_inf.VALUE))])
         writer_out.writerow([date.strftime("%Y-%m-%d %H:%M:%S"),year,month,1,'%s' %float(df_outf.VALUE)])
