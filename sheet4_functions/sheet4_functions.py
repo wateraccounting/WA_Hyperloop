@@ -23,7 +23,7 @@ from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.get_dictionaries as gd
 from WA_Hyperloop.paths import get_path
 from WA_Hyperloop.grace_tr_correction import correct_var
-#from WA_Hyperloop.sup_is_etb_in_natural_lu import bf_reduction_with_gwsup
+from WA_Hyperloop.sup_is_etb_in_natural_lu import bf_reduction_with_gwsup
 
 def sw_ret_wpix(non_consumed_dsro, non_consumed_dperc, lu, ouput_dir_ret_frac):
     DSRO = becgis.OpenAsArray(non_consumed_dsro, nan_values = True)
@@ -113,11 +113,11 @@ def create_gw_supply(metadata, complete_data, output_dir):
         if not os.path.exists(folder):
             os.makedirs(folder)
 
-        supply_gw_tif = os.path.join(folder, 'supply_gw_{0}_{1}.tif'.format(date.year, str(date.month).zfill(2)))
+        supply_gw_tif = os.path.join(folder, 'supply_gw_{0}{1}.tif'.format(date.year, str(date.month).zfill(2)))
         
         becgis.CreateGeoTiff(supply_gw_tif, GW, *geo_info)
         
-    meta = becgis.SortFiles(folder, [-11,-7], month_position = [-6,-4])[0:2]
+    meta = becgis.SortFiles(folder, [-10,-6], month_position = [-6,-4])[0:2]
     
     return meta
    
@@ -207,7 +207,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         
     complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
     
-#    complete_data = bf_reduction_with_gwsup(metadata, complete_data)
+    complete_data = bf_reduction_with_gwsup(metadata, complete_data)
     
     for date in common_dates:    
         total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
@@ -1575,7 +1575,7 @@ def calc_delta_flow(supply_fh, conventional_et_fh, output_folder, date, non_conv
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     if isinstance(date, datetime.date):    
-        delta_fh = os.path.join(output_folder,'delta_{0}_{1}.tif'.format(date.year, date.month))
+        delta_fh = os.path.join(output_folder,'delta_{0}{1}.tif'.format(date.year, date.month))
     else:
         delta_fh = os.path.join(output_folder,'delta_{0}.tif'.format(date))
     
@@ -1735,6 +1735,14 @@ def create_sheet6(basin, period, unit, data, output, template=False, decimal = 1
     p1['VGW_residential'] = float(df1.loc[(df1.TYPE == 'Residential') & (df1.SUBTYPE == 'VERTICAL_GROUNDWATER_WITHDRAWALS')].VALUE)
     p1['VGW_greenhouses'] = float(df1.loc[(df1.TYPE == 'Greenhouses') & (df1.SUBTYPE == 'VERTICAL_GROUNDWATER_WITHDRAWALS')].VALUE)
     p1['VGW_othermanmade'] = float(df1.loc[(df1.TYPE == 'Other') & (df1.SUBTYPE == 'VERTICAL_GROUNDWATER_WITHDRAWALS')].VALUE)
+
+    p1['RFG_forest'] = float(df1.loc[(df1.TYPE == 'Forests') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
+    p1['RFG_shrubland'] = float(df1.loc[(df1.TYPE == 'Shrubland') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
+    p1['RFG_rainfedcrops'] = float(df1.loc[(df1.TYPE == 'Rainfed Crops') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
+    p1['RFG_forestplantations'] = float(df1.loc[(df1.TYPE == 'Forest Plantations') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
+    p1['RFG_wetlands'] = float(df1.loc[(df1.TYPE == 'Wetlands') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
+    p1['RFG_naturalgrassland'] = float(df1.loc[(df1.TYPE == 'Natural Grasslands') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
+    p1['RFG_othernatural'] = float(df1.loc[(df1.TYPE == 'Other (Non-Manmade)') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
     
     p1['RFG_irrigatedcrops'] = float(df1.loc[(df1.TYPE == 'Irrigated crops') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
     p1['RFG_industry'] = float(df1.loc[(df1.TYPE == 'Industry') & (df1.SUBTYPE == 'RETURN_FLOW_GROUNDWATER')].VALUE)
@@ -1771,13 +1779,16 @@ def create_sheet6(basin, period, unit, data, output, template=False, decimal = 1
     p1['VGWtotal_manmade'] = pd.np.nansum([p1['VGW_irrigatedcrops'],p1['VGW_industry'],p1['VGW_aquaculture'],p1['VGW_residential'],p1['VGW_greenhouses'],p1['VGW_othermanmade']])
     p1['VGWtotal'] = pd.np.nansum(df1.loc[(df1.SUBTYPE == 'VERTICAL_GROUNDWATER_WITHDRAWALS')].VALUE)
     
-    p1['RFGtotal_manmade'] = p1['RFGtotal'] = pd.np.nansum([p1['RFG_irrigatedcrops'],
+    p1['RFGtotal_manmade'] = pd.np.nansum([p1['RFG_irrigatedcrops'],
                                                         p1['RFG_industry'], 
                                                         p1['RFG_aquaculture'], 
                                                         p1['RFG_residential'], 
                                                         p1['RFG_greenhouses'], 
                                                         p1['RFG_other']])
- 
+    p1['RFGtotal_natural'] = pd.np.nansum([p1['RFG_forest'], p1['RFG_shrubland'],
+                                          p1['RFG_rainfedcrops'], p1['RFG_forestplantations'],
+                                          p1['RFG_wetlands'], p1['RFG_naturalgrassland'], p1['RFG_othernatural']])
+    p1['RFGtotal'] = pd.np.nansum([p1['RFGtotal_natural'], p1['RFGtotal_manmade']])
     p1['RFStotal_natural'] = pd.np.nansum([p1['RFS_forest'], p1['RFS_shrubland'], p1['RFS_rainfedcrops'], p1['RFS_forestplantations'], p1['RFS_wetlands'], p1['RFS_naturalgrassland'], p1['RFS_othernatural']])
     
     p1['RFStotal_manmade'] = pd.np.nansum([p1['RFS_irrigatedcrops'],p1['RFS_industry'],p1['RFS_aquaculture'],p1['RFS_residential'],p1['RFS_greenhouses'],p1['RFS_othermanmade']])
@@ -1788,7 +1799,7 @@ def create_sheet6(basin, period, unit, data, output, template=False, decimal = 1
     p1['HGO'] = float(df1.loc[(df1.TYPE == 'NON_LU_SPECIFIC') & (df1.SUBTYPE == 'GWOutflow')].VALUE)
     p1['baseflow'] = float(df1.loc[(df1.TYPE == 'NON_LU_SPECIFIC') & (df1.SUBTYPE == 'Baseflow')].VALUE)
     
-    p1['delta_S'] = p1['VRtotal'] - p1['CRtotal'] - p1['VGWtotal'] + p1['RFGtotal_manmade'] + p1['RFStotal'] - p1['baseflow']
+    p1['delta_S'] = p1['VRtotal'] - p1['CRtotal'] - p1['VGWtotal'] + p1['RFGtotal'] + p1['RFStotal'] - p1['baseflow']
     #p1['CRtotal'] = p1['VRtotal'] - p1['VGWtotal'] + p1['RFGtotal_manmade'] + p1['RFStotal'] - p1['baseflow'] - p1['delta_S']
 
     
