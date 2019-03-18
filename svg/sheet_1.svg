@@ -29,8 +29,8 @@
      id="namedview349"
      showgrid="false"
      inkscape:zoom="0.58709732"
-     inkscape:cx="578.49067"
-     inkscape:cy="303.73678"
+     inkscape:cx="865.37927"
+     inkscape:cy="440.00039"
      inkscape:window-x="66"
      inkscape:window-y="-10"
      inkscape:window-maximized="0"
@@ -230,11 +230,11 @@
        y2="230.47871"
        gradientUnits="userSpaceOnUse" /></defs><rect
      id="rect3678"
-     height="1027.5625"
-     width="1355.5"
-     y="54.16468"
-     x="5.026094"
-     style="fill:#ffffff;fill-rule:evenodd" /><path
+     height="1082.0695"
+     width="1365.7201"
+     y="-0.34227037"
+     x="-5.1939592"
+     style="fill:#ffffff;fill-rule:evenodd;stroke-width:1.0300411" /><path
      inkscape:connector-curvature="0"
      style="fill:url(#linearGradient5822);stroke:#ffffff;stroke-width:4.01331234;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10"
      id="path71"
@@ -1293,14 +1293,14 @@
        y="537.18127"
        x="542.47424">Protected Land Use</tspan></text>
 <text
-     y="671.26251"
+     y="663.26227"
      x="542.32428"
      id="text4023"
      font-weight="bold"
      font-size="15px"
      style="font-weight:bold;font-size:18.75px;line-height:0%;font-family:Arial;fill:#231f20"><tspan
        id="tspan9104"
-       y="671.26251"
+       y="663.26227"
        x="542.32428">Managed Water Use</tspan></text>
 <text
      y="458.43124"
@@ -1489,7 +1489,7 @@
        y="656.82153"
        x="903.93506">NaN</tspan></text>
 <text
-     y="693.12811"
+     y="685.12787"
      x="577.48273"
      id="text4023-2"
      font-weight="bold"
@@ -1498,7 +1498,7 @@
        sodipodi:role="line"
        id="tspan1269"
        x="577.48273"
-       y="693.12811">Utilized Flow</tspan></text>
+       y="685.12787">Utilized Flow</tspan></text>
 <g
      id="g8802-5"
      transform="matrix(1.2137194,0,0,-0.37329907,491.58577,749.15565)"
