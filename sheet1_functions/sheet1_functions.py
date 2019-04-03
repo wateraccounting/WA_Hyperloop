@@ -155,9 +155,8 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     if smart_unit:
         scale_test = np.nanmax(df['VALUE'].values)
         scale = hl.scale_factor(scale_test)
-        
         df['VALUE'] *= 10**scale
-    
+
     # Data frames
 
     df_i = df.loc[df.CLASS == "INFLOW"]
@@ -443,7 +442,7 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
 
     # Dark-green box
 
-    consumed_water = land_et + utilized_flow
+    consumed_water = landsc_et + utilized_flow
     depleted_water = consumed_water - p_recy - non_rec_flow
     external_out = depleted_water + outflow
 
