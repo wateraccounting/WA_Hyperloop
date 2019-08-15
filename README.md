@@ -14,7 +14,7 @@
 **string**, Path to geotiff-file, 1 is part of basin, 0 is not part of basin.
 
 #### masks
-**string**, Path to folder containing geotiff-files for each subbasin.
+**dictionary**, one entry per subbasin. The key is the subbasin number (int). The corresponding value is a tuple containing:   (Subbasin name (str), Path to geotiff-files of subbasin mask (str), list of textfiles for additional supply to basin (list of str), list of textfiles for interbasin transfers (list of str)).
 
 #### crops
 **list**, 
