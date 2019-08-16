@@ -122,6 +122,8 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                     for inflow_file in metadata['masks'][sb_code][2]:
                         added_inflow[sb_code] += read_inflow_file(inflow_file, date_list)
                 AVAIL_sb += added_inflow[sb_code]
+            else: 
+                added_inflow[sb_code] = 0
                 
             if len(metadata['masks'][sb_code][3]) > 0: # check if any interbasin transfers are listed
                 for transfer_file in metadata['masks'][sb_code][3]:
@@ -172,7 +174,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                             discharge_sum[sb_code][prev_end:start] = discharge_sum[sb_code][prev_end:start] - ds[prev_end:start]
                     prev_end = end + 1
                 deltaSW[sb_code] = ds
-
+            # End spread out DeltaS to previous timesteps if possible
     if discharge_out_from_wp == False:
         PointShapefile = metadata['OutletPoints']
         SWpath = metadata['surfwat']
