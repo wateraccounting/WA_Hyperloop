@@ -4,9 +4,6 @@ Created on Tue Dec 19 09:47:04 2017
 
 @author: bec
 """
-from __future__ import print_function
-from builtins import zip
-from builtins import range
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -26,12 +23,12 @@ import WA_Hyperloop.get_dictionaries as gd
 def get_ts_from_complete_data(complete_data, mask, keys, dates = None):
     
     if keys == None:
-        keys = list(complete_data.keys())
+        keys = complete_data.keys()
     
-    common_dates = becgis.common_dates([complete_data[key][1] for key in keys])
-    becgis.assert_proj_res_ndv([complete_data[key][0] for key in keys])
+    common_dates = becgis.CommonDates([complete_data[key][1] for key in keys])
+    becgis.AssertProjResNDV([complete_data[key][0] for key in keys])
     
-    MASK = becgis.open_as_array(mask, nan_values = True)
+    MASK = becgis.OpenAsArray(mask, nan_values = True)
     
     tss = dict()
     
@@ -43,7 +40,7 @@ def get_ts_from_complete_data(complete_data, mask, keys, dates = None):
             
             tif = complete_data[key][0][complete_data[key][1] == date][0]
             
-            DATA = becgis.open_as_array(tif, nan_values = True)
+            DATA = becgis.OpenAsArray(tif, nan_values = True)
             DATA[np.isnan(DATA)] = 0.0
             
             DATA[np.isnan(MASK)] = np.nan
@@ -58,12 +55,12 @@ def get_ts_from_complete_data(complete_data, mask, keys, dates = None):
 def get_ts_from_complete_data_spec(complete_data, lu_fh, keys, a, dates = None):
     
     if keys == None:
-        keys = list(complete_data.keys())
+        keys = complete_data.keys()
     
-    common_dates = becgis.common_dates([complete_data[key][1] for key in keys])
-    becgis.assert_proj_res_ndv([complete_data[key][0] for key in keys])
+    common_dates = becgis.CommonDates([complete_data[key][1] for key in keys])
+    becgis.AssertProjResNDV([complete_data[key][0] for key in keys])
     
-    MASK = becgis.open_as_array(lu_fh, nan_values = True)
+    MASK = becgis.OpenAsArray(lu_fh, nan_values = True)
     
     lucs = lucs = gd.get_sheet4_6_classes()
     gw_classes = list()
@@ -81,7 +78,7 @@ def get_ts_from_complete_data_spec(complete_data, lu_fh, keys, a, dates = None):
             
             tif = complete_data[key][0][complete_data[key][1] == date][0]
             
-            DATA = becgis.open_as_array(tif, nan_values = True)
+            DATA = becgis.OpenAsArray(tif, nan_values = True)
             DATA[np.isnan(DATA)] = 0.0
             
             DATA[np.isnan(MASK)] = np.nan
@@ -167,7 +164,7 @@ def calc_var_correction(metadata, complete_data, output_dir,
     msk = ~np.isnan(grace[1])
     x = np.where(msk == True)[0].astype(int).tolist()
     
-    print("Starting alpha optimization")
+    print "Starting alpha optimization"
     
     # Initial values for alpha, beta and theta
     p0 = (bounds[0] + bounds[1])/2.
@@ -245,7 +242,7 @@ def calc_var_correction(metadata, complete_data, output_dir,
 
 
 def calc_gwsupply(total_supply, params):
-    x = list(range(len(total_supply[0])))
+    x = range(len(total_supply[0]))
     scalar_array = params[0] * (np.cos((x - params[2]) * (np.pi / 6)) * 0.5 + 0.5) + (params[1] * (1 - params[0]))
     gw_supply = (total_supply[0], total_supply[1] - (total_supply[1] * scalar_array))
     return gw_supply
@@ -260,9 +257,9 @@ def correct_var(metadata, complete_data, output_dir, formula,
     
     for date, fn in zip(complete_data[var][1], complete_data[var][0]):
         
-        geo_info = becgis.get_geoinfo(fn)
+        geo_info = becgis.GetGeoInfo(fn)
         
-        data = becgis.open_as_array(fn, nan_values = True)
+        data = becgis.OpenAsArray(fn, nan_values = True)
         
         x = calc_delta_months(x0, date)
         
@@ -280,9 +277,9 @@ def correct_var(metadata, complete_data, output_dir, formula,
         filen = 'supply_sw_' + bla[0:4] + '_' + bla[4:6] + '.tif'
         fn = os.path.join(folder, filen)
             
-        becgis.create_geotiff(fn, data, *geo_info)
+        becgis.CreateGeoTiff(fn, data, *geo_info)
         
-    meta = becgis.sort_files(folder, [-11,-7], month_position = [-6,-4])[0:2]
+    meta = becgis.SortFiles(folder, [-11,-7], month_position = [-6,-4])[0:2]
     return a, meta
 
 def calc_delta_months(x0, date):

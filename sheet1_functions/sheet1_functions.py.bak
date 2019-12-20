@@ -5,8 +5,6 @@ Created on Mon Oct 31 12:11:04 2016
 @author: bec
 """
 
-from builtins import zip
-from builtins import str
 import os
 import calendar
 import csv
@@ -34,13 +32,13 @@ def sum_ts(flow_csvs):
         
         coordinates, flow_ts, station_name, unit = pwv.create_dict_entry(cv)
         flow_dates, flow_values = becgis.Unzip(flow_ts)
-        flow_dates = becgis.convert_datetime_date(flow_dates)
+        flow_dates = becgis.ConvertDatetimeDate(flow_dates)
         if unit == 'm3/s':
             flow_values = np.array([flow_values[flow_dates == date] * 60 * 60 * 24 * calendar.monthrange(date.year, date.month)[1] / 1000**3 for date in flow_dates])[:,0]
         flows.append(flow_values)
         dates.append(flow_dates)
        
-    common_dates = becgis.common_dates(dates)
+    common_dates = becgis.CommonDates(dates)
     
     data = np.zeros(np.shape(common_dates))
     for flow_values, flow_dates in zip(flows, dates):
@@ -72,9 +70,9 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     
     # Determine for what dates all the required data is available.
     if output_fh_in:
-        common_dates = becgis.common_dates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1], outflow_dates, inflow_dates])
+        common_dates = becgis.CommonDates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1], outflow_dates, inflow_dates])
     else:
-        common_dates = becgis.common_dates([complete_data['tr'][1],complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1]]) #, outflow_dates])
+        common_dates = becgis.CommonDates([complete_data['tr'][1],complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1]]) #, outflow_dates])
     
     # Create list to store results.
     all_results = list()
@@ -590,7 +588,7 @@ def plot_parameter(all_results, dates, catchment_name, output_dir, parameter, ex
     fig.autofmt_xdate()
     ax.set_ylim([np.nanmin(ts), np.nanmax(ts)*1.1])
     ax.set_xlim([np.min(dates), np.max(dates)])
-    [i.set_zorder(10) for i in ax.spines.values()]
+    [i.set_zorder(10) for i in ax.spines.itervalues()]
     plt.savefig(os.path.join(output_dir, '{0}.{1}'.format(parameter, extension)))
    
 def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'png'):
@@ -638,7 +636,7 @@ def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'p
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * 0.1,box.width, box.height * 0.9])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.21),fancybox=True, shadow=True, ncol=5)
-    [i.set_zorder(10) for i in ax.spines.values()]
+    [i.set_zorder(10) for i in ax.spines.itervalues()]
     plt.savefig(os.path.join(output_dir, 'water_balance_fullbasin.{0}'.format(extension)))
     
     fig  = plt.figure(figsize = (10,10))
@@ -664,7 +662,7 @@ def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'p
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * 0.1,box.width, box.height * 0.9])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.21),fancybox=True, shadow=True, ncol=5)
-    [i.set_zorder(10) for i in ax.spines.values()]
+    [i.set_zorder(10) for i in ax.spines.itervalues()]
     plt.savefig(os.path.join(output_dir, 'water_storage_fullbasin.{0}'.format(extension)))
 
 
@@ -687,7 +685,7 @@ def calc_ETs(ET, lu_fh, sheet1_lucs):
     et : dict
         Dictionary with the totals per landuse category.
     """
-    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
     et = dict()
     for key in sheet1_lucs:
         classes = sheet1_lucs[key]
@@ -723,10 +721,10 @@ def calc_utilizedflow(incremental_et, other, non_recoverable, other_fractions, n
     uf_mwu : float
         Utilized Flow for Managed Water Use.
     """
-    assert np.sum(list(other_fractions.values())) == 1.00, "Fractions for other should sum to 1.00."
-    assert np.sum(list(non_recoverable_fractions.values())) == 1.00, "Fractions for non_recoverable should sum to 1.00."   
+    assert np.sum(other_fractions.values()) == 1.00, "Fractions for other should sum to 1.00."
+    assert np.sum(non_recoverable_fractions.values()) == 1.00, "Fractions for non_recoverable should sum to 1.00."   
     
-    np.array(list(incremental_et.values())) + np.array(list(other_fractions.values())) * other + np.array(list(non_recoverable_fractions.values())) * non_recoverable
+    np.array(incremental_et.values()) + np.array(other_fractions.values()) * other + np.array(non_recoverable_fractions.values()) * non_recoverable
     
     uf_plu = incremental_et['Protected'] + other_fractions['Protected'] * other + non_recoverable_fractions['Protected'] * non_recoverable
     uf_ulu = incremental_et['Utilized'] + other_fractions['Utilized'] * other + non_recoverable_fractions['Utilized'] * non_recoverable
@@ -774,12 +772,12 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     """
     results = dict()
     
-    LULC = becgis.open_as_array(lu_fh, nan_values = True)
-    P = becgis.open_as_array(entries['P'], nan_values = True)
-    ETgreen = becgis.open_as_array(entries['ETgreen'], nan_values = True)
-    ETblue = becgis.open_as_array(entries['ETblue'], nan_values = True)
+    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
+    P = becgis.OpenAsArray(entries['P'], nan_values = True)
+    ETgreen = becgis.OpenAsArray(entries['ETgreen'], nan_values = True)
+    ETblue = becgis.OpenAsArray(entries['ETblue'], nan_values = True)
     
-    pixel_area = becgis.map_pixel_area_km(lu_fh)
+    pixel_area = becgis.MapPixelAreakm(lu_fh)
 
     gray_water_fraction = becgis.calc_basinmean(entries['WPL'], lu_fh)
     ewr_percentage = becgis.calc_basinmean(entries['EWR'], lu_fh)
@@ -816,7 +814,7 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     results['uf_plu'], results['uf_ulu'], results['uf_mlu'], results['uf_mwu'] = calc_utilizedflow(incremental_et, results['other'], results['non_recoverable'], other_fractions, non_recoverable_fractions)
    
     net_inflow = results['p_recycled'] + results['p_advection'] + q_in_sw + q_in_gw + q_in_desal + results['dS'] 
-    consumed_water = np.nansum(list(landscape_et.values())) + np.nansum(list(incremental_et.values())) + results['other'] + results['non_recoverable']
+    consumed_water = np.nansum(landscape_et.values()) + np.nansum(incremental_et.values()) + results['other'] + results['non_recoverable']
     non_consumed_water = net_inflow - consumed_water
     
     results['non_utilizable_outflow'] = min(non_consumed_water, max(0.0, calc_non_utilizable(P, ET, entries['Fractions'])))
@@ -956,7 +954,7 @@ def calc_non_utilizable(P, ET, fractions_fh):
     non_utilizable_runoff : float
         The total volume of non_utilizable runoff.
     """
-    fractions = becgis.open_as_array(fractions_fh, nan_values = True)
+    fractions = becgis.OpenAsArray(fractions_fh, nan_values = True)
     non_utilizable_runoff = np.nansum((P - ET) * fractions)
     return non_utilizable_runoff
 

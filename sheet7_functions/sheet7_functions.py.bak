@@ -4,18 +4,17 @@ Created on Thu Jun 15 15:45:59 2017
 
 @author: cmi001
 """
-from builtins import range
 import os
 import csv
-import cairosvg
+import subprocess
 import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
 import netCDF4 as nc
 import tempfile as tf
 from WA_Hyperloop.sheet3_functions import sheet3_functions as sh3
-import watools.General.raster_conversions as RC
-import watools.General.data_conversions as DC
+import wa.General.raster_conversions as RC
+import wa.General.data_conversions as DC
 
 import WA_Hyperloop.becgis as becgis
 from WA_Hyperloop.paths import get_path
@@ -32,10 +31,10 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
         os.makedirs(output_folder)
     recy_ratio = metadata['recycling_ratio']
 
-    date_list2 = becgis.common_dates([complete_data['etb'][1],
+    date_list2 = becgis.CommonDates([complete_data['etb'][1],
                                      complete_data['tr'][1],
                                      complete_data['recharge'][1]])
-    date_list = becgis.convert_datetime_date(date_list2, out='datetime')
+    date_list = becgis.ConvertDatetimeDate(date_list2, out='datetime')
 
     live_feed, feed_dict, abv_grnd_biomass_ratio, fuel_dict, sheet7_lulc_classes, c_fractions = get_sheet7_classes()
     # year:fish production
@@ -55,12 +54,12 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
     # Select and project population to LULC map
     pop_fh = global_data['population_tif']
 #    pop_temp = os.path.join(output_folder, 'temp_pop')
-#    pop_fh = becgis.match_proj_res_ndv(lu_fh, pop_fh, pop_temp)
+#    pop_fh = becgis.MatchProjResNDV(lu_fh, pop_fh, pop_temp)
 
     # Select and project cattle to LULC map
     cattle_fh = [global_data["cattle"]]
     cattle_temp = os.path.join(output_folder, 'temp_cattle')
-    cattle_fh = becgis.match_proj_res_ndv(lu_fh, cattle_fh, cattle_temp)[0]
+    cattle_fh = becgis.MatchProjResNDV(lu_fh, cattle_fh, cattle_temp)[0]
 
     ndm_fhs = []
     ro_fhs = []
@@ -95,7 +94,7 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
 
     # calculate root_storage and return filehandles of saved tif files
     rz_depth_fh = global_data['root_depth']
-    rz_depth_tif = becgis.match_proj_res_ndv(lu_fh, np.array([rz_depth_fh]), tf.mkdtemp())[0]
+    rz_depth_tif = becgis.MatchProjResNDV(lu_fh, np.array([rz_depth_fh]), tf.mkdtemp())[0]
     rz_sm_fhs = complete_data['rzsm'][0]
 
     root_storage_fhs = root_zone_storage_Wpx(output_folder, rz_sm_fhs, rz_depth_tif)
@@ -186,13 +185,13 @@ def livestock_feed(output_folder, lu_fh, ndm_fhs, feed_dict, live_feed, cattle_f
     if not os.path.exists(out_folder):
         os.mkdir(out_folder)
 
-    area_ha = becgis.map_pixel_area_km(lu_fh) * 100
+    area_ha = becgis.MapPixelAreakm(lu_fh) * 100
     LULC = RC.Open_tiff_array(lu_fh)
   #  cattle = RC.Open_tiff_array(cattle_fh)
     geo_out, proj, size_X, size_Y = RC.Open_array_info(lu_fh)
 
     f_pct = np.zeros(LULC.shape)
-    for lu_type in list(feed_dict.keys()):
+    for lu_type in feed_dict.keys():
         classes = feed_dict[lu_type]
         mask = np.logical_or.reduce([LULC == value for value in classes])
         f_pct[mask] = live_feed[lu_type]
@@ -210,7 +209,7 @@ def livestock_feed(output_folder, lu_fh, ndm_fhs, feed_dict, live_feed, cattle_f
         out_fh_l = out_folder+'\\feed_prod_landscape_%s_%s.tif' %(year, month)
         out_fh_i = out_folder+'\\feed_prod_incremental_%s_%s.tif' %(year, month)
 #        out_fh2 = out_folder+'\\Feed_prod_pH_%s_%s.tif' %(year, month)
-        NDM = becgis.open_as_array(ndm_fh, nan_values=True)
+        NDM = becgis.OpenAsArray(ndm_fh, nan_values=True)
         NDM_feed = NDM * f_pct
         NDM_feed_incremental = NDM_feed * yield_fract * area_ha/1e6
         NDM_feed_landscape = (NDM_feed *(1-yield_fract)) * area_ha/1e6
@@ -240,7 +239,7 @@ def fuel_wood(output_folder, lu_fh, ndm_fhs, fraction_fhs, ndmdates):
     if not os.path.exists(out_folder):
         os.mkdir(out_folder)
 
-    area_ha = becgis.map_pixel_area_km(lu_fh) * 100
+    area_ha = becgis.MapPixelAreakm(lu_fh) * 100
     LULC = RC.Open_tiff_array(lu_fh)
     geo_out, proj, size_X, size_Y = RC.Open_array_info(lu_fh)
 
@@ -263,7 +262,7 @@ def fuel_wood(output_folder, lu_fh, ndm_fhs, fraction_fhs, ndmdates):
 #        month = ndm_fh[-9:-7]
         out_fh_l = out_folder+'\\fuel_prod_landscape_%s_%s.tif' %(year, month)
         out_fh_i = out_folder+'\\fuel_prod_incremental_%s_%s.tif' %(year, month)
-        NDM = becgis.open_as_array(ndm_fh, nan_values=True)
+        NDM = becgis.OpenAsArray(ndm_fh, nan_values=True)
 
         NDM_fuel_incremental = NDM * .05 * fuel_mask * yield_fract * area_ha/1e6
         NDM_fuel_landscape = NDM  * .05 * fuel_mask *(1-yield_fract) * area_ha/1e6
@@ -306,14 +305,14 @@ def root_zone_storage_Wpx(output_folder, rz_sm_fhs, rz_depth_fh):
     out_folder = os.path.join(output_folder, Data_Path_RZ)
     if not os.path.exists(out_folder):
         os.mkdir(out_folder)
-    root_depth = becgis.open_as_array(rz_depth_fh, nan_values=True)
-    geo = becgis.get_geoinfo(rz_depth_fh)
+    root_depth = becgis.OpenAsArray(rz_depth_fh, nan_values=True)
+    geo = becgis.GetGeoInfo(rz_depth_fh)
     root_storage_fhs = []
     for rz_sm_fh in rz_sm_fhs:
-        root_depth_sm = becgis.open_as_array(rz_sm_fh, nan_values=True)
+        root_depth_sm = becgis.OpenAsArray(rz_sm_fh, nan_values=True)
         root_storage = root_depth * root_depth_sm
         out_fh = os.path.join(out_folder, 'RZ_storage_mm_%s' %(rz_sm_fh[-10:]))
-        becgis.create_geotiff(out_fh, root_storage, *geo)
+        becgis.CreateGeoTiff(out_fh, root_storage, *geo)
         root_storage_fhs.append(out_fh)
     return root_storage_fhs
 
@@ -344,7 +343,7 @@ def recycle(output_folder, et_bg_fhs, recy_ratio, lu_fh, et_type):
     recycle_fhs = []
     for et_fh in et_bg_fhs:
         out_fh = out_folder + "\\recycled_et_"+et_type+et_fh[-11:-4]+".tif"
-        et = becgis.open_as_array(et_fh, nan_values=True)
+        et = becgis.OpenAsArray(et_fh, nan_values=True)
         et_recy = et*recy_ratio
         DC.Save_as_tiff(out_fh, et_recy, geo_out)
         recycle_fhs.append(out_fh)
@@ -355,7 +354,7 @@ def lu_type_average(data_fh, lu_fh, lu_dict):
     LULC = RC.Open_tiff_array(lu_fh)
     in_data = RC.Open_tiff_array(data_fh)
     out_data = {}
-    for lu_class in list(lu_dict.keys()):
+    for lu_class in lu_dict.keys():
         mask = [LULC == value for value in lu_dict[lu_class]]
         mask = (np.sum(mask, axis=0)).astype(bool)
         out_data[lu_class] = np.nanmean(in_data[mask])
@@ -363,13 +362,13 @@ def lu_type_average(data_fh, lu_fh, lu_dict):
 
 def lu_type_sum(data_fh, lu_fh, lu_dict, convert=None):
     LULC = RC.Open_tiff_array(lu_fh)
-    in_data = becgis.open_as_array(data_fh, nan_values=True)
+    in_data = becgis.OpenAsArray(data_fh, nan_values=True)
 #    in_data = RC.Open_tiff_array(data_fh)
     if convert == 'mm_to_km3':
-        AREA = becgis.map_pixel_area_km(data_fh)
+        AREA = becgis.MapPixelAreakm(data_fh)
         in_data *= AREA / 1e6
     out_data = {}
-    for lu_class in list(lu_dict.keys()):
+    for lu_class in lu_dict.keys():
         mask = [LULC == value for value in lu_dict[lu_class]]
         mask = (np.sum(mask, axis=0)).astype(bool)
         out_data[lu_class] = np.nansum(in_data[mask])
@@ -449,9 +448,9 @@ def get_sheet7_classes():
         }
 
     sheet7_lulc_classes = dict()
-    for k in list(sheet7_lulc.keys()):
+    for k in sheet7_lulc.keys():
         l = []
-        for k2 in list(sheet7_lulc[k].keys()):
+        for k2 in sheet7_lulc[k].keys():
             l.append(sheet7_lulc[k][k2])
         sheet7_lulc_classes[k] = [item for sublist in l for item in sublist]
     return live_feed, feed_dict, abv_grnd_biomass_ratio, fuel_dict, sheet7_lulc_classes, c_fraction
@@ -507,7 +506,7 @@ def create_sheet7_svg(basin, period, data, output, template=False):
 
     df = pd.read_csv(data, sep=';')
     if not template:
-        svg_template_path = get_path('sheet7m_svg')
+        svg_template_path = r'C:\Anaconda2\Lib\site-packages\wa\Sheets\svg\sheet_7_month.svg'
     else:
         svg_template_path = os.path.abspath(template)
 
@@ -540,9 +539,9 @@ def create_sheet7_svg(basin, period, data, output, template=False):
   #  dict3 = {'-':'0', 'Incremental ET natural':'3', 'Landscape ET':'2', 'Non-consumptive':'1'}
     dict3 = {'Incremental ET natural':'2', 'Landscape ET':'3', 'Non-consumptive':'1'}
 
-    variables = list(dict1.keys())
-    land_use = list(dict2.keys())
-    services = list(dict3.keys())
+    variables = dict1.keys()
+    land_use = dict2.keys()
+    services = dict3.keys()
 
     for v in variables:
         df_1 = df.loc[df.VARIABLE == v]
@@ -566,10 +565,11 @@ def create_sheet7_svg(basin, period, data, output, template=False):
                             xml_txt_box = tree.findall('''.//*[@id='{0}']'''.format(cell_id))[0]
                             list(xml_txt_box)[0].text = '%.1f' % value
 
-    # Export svg to png    
-    tempout_path = output.replace('.pdf', '_temporary.svg')
-    tree.write(tempout_path)    
-    cairosvg.svg2pdf(url=tempout_path, write_to=output)    
-    os.remove(tempout_path) 
+    tempout_path = output.split('.')[:-1][0]+'.svg'
+    tree.write(tempout_path)
+    out_png = output
 
+    subprocess.call([r'C:\Program Files\Inkscape\inkscape.exe', tempout_path,
+                     '--export-dpi=300', '--export-png='+out_png])
+    os.remove(tempout_path)
     return

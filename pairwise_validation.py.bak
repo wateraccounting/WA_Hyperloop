@@ -80,14 +80,14 @@ def compare_rasters2stations(ds1_fhs, ds1_dates, station_dict, output_dir, stati
     else:
         quantity_unit = ['data', '']
         
-    becgis.assert_proj_res_ndv([ds1_fhs])
+    becgis.AssertProjResNDV([ds1_fhs])
     no_of_stations = len(list(station_dict.keys()))
-    ds1_dates = becgis.convert_datetime_date(ds1_dates, out = 'datetime')
+    ds1_dates = becgis.ConvertDatetimeDate(ds1_dates, out = 'datetime')
 
     for i, station in enumerate(station_dict.keys()):
         
         station_dates, station_values = unzip(station_dict[station])
-        common_dates = becgis.common_dates([ds1_dates, station_dates])
+        common_dates = becgis.CommonDates([ds1_dates, station_dates])
         sample_size = common_dates.size
         
         if sample_size >= min_records:
@@ -99,7 +99,7 @@ def compare_rasters2stations(ds1_fhs, ds1_dates, station_dict, output_dir, stati
                 continue
             else:
                 for date in common_dates:
-                    ds1_values.append(becgis.open_as_array(ds1_fhs[ds1_dates == date][0], nan_values = True)[ypixel, xpixel])
+                    ds1_values.append(becgis.OpenAsArray(ds1_fhs[ds1_dates == date][0], nan_values = True)[ypixel, xpixel])
                     
                 common_station_values = [station_values[station_dates == date][0] for date in common_dates]
                 
@@ -174,8 +174,8 @@ def compare_rasters2stations(ds1_fhs, ds1_dates, station_dict, output_dir, stati
         print(value)
         plot_histogram(value[(~np.isnan(value)) & (~np.isinf(value))], title, xlabel, output_dir, suptitle = suptitle)
     
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(ds1_fhs[0])
-    dummy_map = becgis.open_as_array(ds1_fhs[0])
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(ds1_fhs[0])
+    dummy_map = becgis.OpenAsArray(ds1_fhs[0])
     grid = np.mgrid[0:ysize, 0:xsize]
     var_names = ['pearson', 'rmse', 'ns', 'bias', 'no_of_samples']
 
@@ -185,7 +185,7 @@ def compare_rasters2stations(ds1_fhs, ds1_dates, station_dict, output_dir, stati
         interpolation_field = interpolate.griddata(xy, z, (grid[1], grid[0]), method=method, fill_value = np.nanmean(z))
         interpolation_field[dummy_map == NDV] = NDV
         fh = os.path.join(path_int, '{0}_{1}stations_vs_{2}.tif'.format(var_names[i], len(xy), dataset_names[0]))
-        becgis.create_geotiff(fh, interpolation_field, driver, NDV, xsize, ysize, GeoT, Projection)
+        becgis.CreateGeoTiff(fh, interpolation_field, driver, NDV, xsize, ysize, GeoT, Projection)
 
     return results
 
@@ -228,14 +228,14 @@ def compare_rasters2rasters(ds1_fhs, ds1_dates, ds2_fhs, ds2_dates, output_dir =
                                           output_dir = r"C:/Desktop/", quantity_unit = ["P", "mm/month"], 
                                           dataset_names = ["CHIRPS", "TRMM"])
     """
-    becgis.assert_proj_res_ndv([ds1_fhs, ds2_fhs])
+    becgis.AssertProjResNDV([ds1_fhs, ds2_fhs])
     
     if dataset_names is None:
         dataset_names = ['DS1','DS2']
     
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(ds1_fhs[0])
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(ds1_fhs[0])
     
-    common_dates = becgis.common_dates([ds1_dates, ds2_dates])
+    common_dates = becgis.CommonDates([ds1_dates, ds2_dates])
     
     diff_sum = np.zeros((ysize,xsize))
     non_nans = np.zeros((ysize,xsize))
@@ -245,8 +245,8 @@ def compare_rasters2rasters(ds1_fhs, ds1_dates, ds2_fhs, ds2_dates, output_dir =
     
     for date in common_dates:
         
-        DS1 = becgis.open_as_array(ds1_fhs[ds1_dates == date][0], nan_values = True)
-        DS2 = becgis.open_as_array(ds2_fhs[ds2_dates == date][0], nan_values = True)
+        DS1 = becgis.OpenAsArray(ds1_fhs[ds1_dates == date][0], nan_values = True)
+        DS2 = becgis.OpenAsArray(ds2_fhs[ds2_dates == date][0], nan_values = True)
         
         DS1[np.isnan(DS2)] = np.nan
         DS2[np.isnan(DS1)] = np.nan
@@ -273,7 +273,7 @@ def compare_rasters2rasters(ds1_fhs, ds1_dates, ds2_fhs, ds2_dates, output_dir =
     if output_dir is not None:
         for varname in list(results.keys()):
             fh = os.path.join(path, '{0}_{1}_vs_{2}_{3}_{4}.tif'.format(varname, dataset_names[0], dataset_names[1], startdate, enddate))
-            becgis.create_geotiff(fh, results[varname], driver, NDV, xsize, ysize, GeoT, Projection)
+            becgis.CreateGeoTiff(fh, results[varname], driver, NDV, xsize, ysize, GeoT, Projection)
 
     return results 
 
@@ -303,9 +303,9 @@ def compare_rasters2rasters_per_lu(ds1_fhs, ds1_dates, ds2_fhs, ds2_dates, lu_fh
         The 'no_of_classes' most dominant classes in the the lu_fh are compared, the rest is ignored.
     
     """
-    LUCS = becgis.open_as_array(lu_fh, nan_values = True)
-    DS1 = becgis.open_as_array(ds1_fhs[0], nan_values = True)
-    DS2 = becgis.open_as_array(ds2_fhs[0], nan_values = True)
+    LUCS = becgis.OpenAsArray(lu_fh, nan_values = True)
+    DS1 = becgis.OpenAsArray(ds1_fhs[0], nan_values = True)
+    DS2 = becgis.OpenAsArray(ds2_fhs[0], nan_values = True)
     
     DS1[np.isnan(DS2)] = np.nan
     LUCS[np.isnan(DS1)] = np.nan
@@ -314,10 +314,10 @@ def compare_rasters2rasters_per_lu(ds1_fhs, ds1_dates, ds2_fhs, ds2_dates, lu_fh
     counts_sorted = np.sort(counts)[-no_of_classes:]
     selected_lucs = [classes[counts == counter][0] for counter in counts_sorted]
     
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_fh)
-    becgis.create_geotiff(lu_fh.replace('.tif','_.tif'), LUCS, driver, NDV, xsize, ysize, GeoT, Projection)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
+    becgis.CreateGeoTiff(lu_fh.replace('.tif','_.tif'), LUCS, driver, NDV, xsize, ysize, GeoT, Projection)
 
-    common_dates = becgis.common_dates([ds1_dates, ds2_dates])
+    common_dates = becgis.CommonDates([ds1_dates, ds2_dates])
     
     ds1_totals = np.array([])
     ds2_totals = np.array([])
@@ -327,8 +327,8 @@ def compare_rasters2rasters_per_lu(ds1_fhs, ds1_dates, ds2_fhs, ds2_dates, lu_fh
     
     for date in common_dates:
         
-        DS1 = becgis.open_as_array(ds1_fhs[ds1_dates == date][0], nan_values = True)
-        DS2 = becgis.open_as_array(ds2_fhs[ds2_dates == date][0], nan_values = True)
+        DS1 = becgis.OpenAsArray(ds1_fhs[ds1_dates == date][0], nan_values = True)
+        DS2 = becgis.OpenAsArray(ds2_fhs[ds2_dates == date][0], nan_values = True)
         
         for clss in selected_lucs:
             
@@ -352,15 +352,15 @@ def compare_rasters2rasters_per_lu(ds1_fhs, ds1_dates, ds2_fhs, ds2_dates, lu_fh
         if class_dictionary is None:
             plot_scatter_series(DS1_per_class[clss], DS2_per_class[clss], dataset_names[0], dataset_names[1], clss, output_dir)
         else:
-            cats = {v[0]: k for k, v in list(class_dictionary.items())}
+            cats = {v[0]: k for k, v in class_dictionary.items()}
             plot_scatter_series(DS1_per_class[clss], DS2_per_class[clss], dataset_names[0], dataset_names[1], cats[clss], output_dir)
             
     plot_scatter_series(ds1_totals, ds2_totals, dataset_names[0], dataset_names[1], "Total Area", output_dir)
 
     if class_dictionary is not None:
         output_fh = os.path.join(output_dir, 'landuse_percentages.png')
-        driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_fh)
-        becgis.create_geotiff(lu_fh.replace('.tif','_.tif'), LUCS, driver, NDV, xsize, ysize, GeoT, Projection)
+        driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
+        becgis.CreateGeoTiff(lu_fh.replace('.tif','_.tif'), LUCS, driver, NDV, xsize, ysize, GeoT, Projection)
         becgis.plot_category_areas(lu_fh.replace('.tif','_.tif'), class_dictionary, output_fh, area_treshold = 0.01)
         os.remove(lu_fh.replace('.tif','_.tif'))
         
@@ -881,7 +881,7 @@ def get_timeseries_raster(ds1_fhs, ds1_dates, coordinates, output_fh, unit = 'm3
         print("Coordinates ({0}) not on the map".format(coordinates))
     else:
         for date in ds1_dates:
-            ds1_values.append(becgis.open_as_array(ds1_fhs[ds1_dates == date][0], nan_values = True)[ypixel, xpixel])
+            ds1_values.append(becgis.OpenAsArray(ds1_fhs[ds1_dates == date][0], nan_values = True)[ypixel, xpixel])
         
         ds1_values = np.array(ds1_values)    
         

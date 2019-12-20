@@ -4,16 +4,13 @@ Created on Tue Nov 28 13:05:42 2017
 
 @author: bec
 """
-from __future__ import print_function
-from __future__ import absolute_import
-from builtins import str
 import os
 from WA_Hyperloop import indicators
 import numpy as np
 import tempfile
 import matplotlib.pyplot as plt
 import shapefile
-from . import becgis as bg
+import becgis as bg
 from WA_Hyperloop import get_dictionaries as gd
 
 
@@ -112,7 +109,7 @@ def plot_indicator(path, *args):
         defs = get_definitions(freq)
         dates = arg.pop('dates', None)
 
-        for indicator, values in list(arg.items()):
+        for indicator, values in arg.items():
 
             values = values[~np.isnan(values)]
 
@@ -247,9 +244,9 @@ def calc_indicators(basins, output_dir):
     that contains all the basin outlines.
     """
 
-    for basin in list(basins.values()):
+    for basin in basins.values():
 
-        print("Running Basin {0}".format(basin['id']))
+        print "Running Basin {0}".format(basin['id'])
 
         basin['idcs'] = dict()
         basin['stats'] = dict()
@@ -283,7 +280,7 @@ def plot_indicators(basins, output_dir):
     """
     basin_shp = os.path.join(output_dir, 'All_Basins.shp')
 
-    for basin in list(basins.values()):
+    for basin in basins.values():
 
         path = os.path.join(output_dir, basin['name'])
         plot_indicator(path, basin['idcs'])
@@ -296,9 +293,9 @@ def calc_sb_indicators(basins, output_dir, pop_map):
     """
     sb_shp = os.path.join(output_dir, 'All_Basins_Subbasins.shp')
 
-    for basin in list(basins.values()):
+    for basin in basins.values():
 
-        print("Runnning Basin {0}".format(basin['id']))
+        print "Runnning Basin {0}".format(basin['id'])
 
         sb_masks = bg.ListFilesInFolder(basin['masks'])
 
@@ -320,7 +317,7 @@ def calc_avg_flux(mask, basin, output_dir, flux):
     of maps.
     """
     input_dir = os.path.join(output_dir, basin['name'], 'data', flux)
-    print(input_dir)
+    print input_dir
     ets = bg.SortFiles(input_dir, [-10, -6], month_position=[-6, -4])[0]
     mean_map = calc_mean(ets)
     et = calc_mskd_mean(mask, mean_map, flux)
@@ -389,7 +386,7 @@ def update_idc_shapefile(basin_shp, identifier, *args):
 
     for arg in args:
         dates = arg.pop('dates', None)
-        for indicator, values in list(arg.items()):
+        for indicator, values in arg.items():
 
             if len(indicator) >= 10:
                 indicator = indicator[0:10]
@@ -465,7 +462,7 @@ def calc_lu_areas(lu_map):
 
     areas = dict()
 
-    for typ, classes in list(lu_types.items()):
+    for typ, classes in lu_types.items():
 
         mask = np.logical_or.reduce([lu == value for value in classes])
 

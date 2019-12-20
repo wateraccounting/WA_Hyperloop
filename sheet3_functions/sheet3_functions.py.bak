@@ -4,9 +4,6 @@ Created on Tue Nov 15 14:21:43 2016
 
 @author: bec
 """
-from __future__ import print_function
-from builtins import str
-from builtins import zip
 import os
 import csv
 import datetime
@@ -17,9 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
-import pandas as pd
-import xml.etree.ElementTree as ET
-import cairosvg
+
 
 import WA_Hyperloop.becgis as becgis
 import WA_Hyperloop.get_dictionaries as gd
@@ -35,7 +30,7 @@ def create_sheet3(complete_data, metadata, output_dir):
     wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_non_crop_dictionary = gd.get_sheet3_empties()
     years = dict()
 
-    LULC = becgis.open_as_array(metadata['lu'], nan_values = True)
+    LULC = becgis.OpenAsArray(metadata['lu'], nan_values = True)
     
     for crop in metadata['crops']:
         if crop[4] in LULC:
@@ -50,7 +45,7 @@ def create_sheet3(complete_data, metadata, output_dir):
                 wp_y_rainfed_dictionary[crop[2]][crop[3]] = result
             years[crop[4]] = [date.year for date in read_csv(result)[0]][1:]
         else:
-            print("skipping crop with lu-class {0}, not on LU-map".format(crop[4]))
+            print "skipping crop with lu-class {0}, not on LU-map".format(crop[4])
             continue
     
     if metadata['non_crop'] is not None:
@@ -59,7 +54,7 @@ def create_sheet3(complete_data, metadata, output_dir):
             crp = ['Meat', 'Milk', 'Aquaculture', 'Timber']
             plot_Y_WP(result, os.path.join(output_dir,'WP_Y_Yearly_graphs'), croptype = crp[i], catchment_name = metadata['name'], filetype = 'png')
 
-    years = becgis.common_dates(list(years.values()))
+    years = becgis.CommonDates(years.values())
     
     if metadata['non_crop'] is not None:
         wp_y_non_crop_dictionary['Livestock']['Meat'] = metadata['non_crop']['meat']
@@ -69,8 +64,8 @@ def create_sheet3(complete_data, metadata, output_dir):
 
     for year in years:
         csv_fh_a, csv_fh_b = create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_non_crop_dictionary, year, output_dir)
-        output_fh_a = csv_fh_a[:-3] + 'pdf'
-        output_fh_b = csv_fh_b[:-3] + 'pdf'
+        output_fh_a = csv_fh_a[:-3] + 'png'
+        output_fh_b = csv_fh_b[:-3] + 'png'
         sheet3a_fh, sheet3b_fh = create_sheet3_png(metadata['name'], str(year), ['km3/year', 'kg/ha/year', 'kg/m3'], [csv_fh_a, csv_fh_b], [output_fh_a, output_fh_b], template = [get_path('sheet3_1_svg'),get_path('sheet3_2_svg')])
      
     return complete_data
@@ -137,16 +132,16 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
     first_row_b = ["USE","CLASS","SUBCLASS","TYPE","SUBTYPE","LAND_PRODUCTIVITY","WATER_PRODUCTIVITY"]
     first_row_a = ["USE","CLASS","SUBCLASS","TYPE","SUBTYPE","WATER_CONSUMPTION"]
     
-    csv_file_b = open(output_csv_fh_b, 'w')
+    csv_file_b = open(output_csv_fh_b, 'wb')
     writer_b = csv.writer(csv_file_b, delimiter=';')
     writer_b.writerow(first_row_b)
     
-    csv_file_a = open(output_csv_fh_a, 'w')
+    csv_file_a = open(output_csv_fh_a, 'wb')
     writer_a = csv.writer(csv_file_a, delimiter=';')
     writer_a.writerow(first_row_a)
     
-    for TYPE in list(wp_y_irrigated_dictionary.keys()):
-        for SUBTYPE in list(wp_y_irrigated_dictionary[TYPE].keys()):
+    for TYPE in wp_y_irrigated_dictionary.keys():
+        for SUBTYPE in wp_y_irrigated_dictionary[TYPE].keys():
             if type(wp_y_irrigated_dictionary[TYPE][SUBTYPE]) is type(None):
                 writer_b.writerow(["CROP","IRRIGATED","Yield rainfall",TYPE,SUBTYPE,"nan","nan"])
                 writer_b.writerow(["CROP","IRRIGATED","Incremental yield",TYPE,SUBTYPE,"nan","nan"])
@@ -162,8 +157,8 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
                 writer_a.writerow(["CROP","IRRIGATED","ET rainfall",TYPE,SUBTYPE,WCgreen[mask][0]])
                 writer_a.writerow(["CROP","IRRIGATED","Incremental ET",TYPE,SUBTYPE,WCblue[mask][0]])
                 
-    for TYPE in list(wp_y_rainfed_dictionary.keys()):
-        for SUBTYPE in list(wp_y_rainfed_dictionary[TYPE].keys()):
+    for TYPE in wp_y_rainfed_dictionary.keys():
+        for SUBTYPE in wp_y_rainfed_dictionary[TYPE].keys():
             if type(wp_y_rainfed_dictionary[TYPE][SUBTYPE]) is type(None):
                 writer_b.writerow(["CROP","RAINFED","Yield",TYPE,SUBTYPE,"nan","nan"])
                 writer_a.writerow(["CROP","RAINFED","ET",TYPE,SUBTYPE,"nan"])
@@ -173,8 +168,8 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
                 writer_b.writerow(["CROP","RAINFED","Yield",TYPE,SUBTYPE,Y[mask][0],WP[mask][0]])
                 writer_a.writerow(["CROP","RAINFED","ET",TYPE,SUBTYPE,WC[mask][0]])
     
-    for TYPE in list(wp_y_non_crop_dictionary.keys()):
-        for SUBTYPE in list(wp_y_non_crop_dictionary[TYPE].keys()):
+    for TYPE in wp_y_non_crop_dictionary.keys():
+        for SUBTYPE in wp_y_non_crop_dictionary[TYPE].keys():
             if type(wp_y_non_crop_dictionary[TYPE][SUBTYPE]) is type(None):
                 writer_b.writerow(["NON-CROP","RAINFED","Yield",TYPE,SUBTYPE,"nan","nan"])
                 writer_b.writerow(["NON-CROP","IRRIGATED","Yield rainfall",TYPE,SUBTYPE,"nan","nan"])
@@ -235,7 +230,7 @@ def calc_Y_WP_year(csv_fh, output_dir, croptype):
     years = np.unique(np.array([date.year for date in np.append(start_dates, end_dates)]))
     
     csv_filename = os.path.join(output_dir, 'Yearly_Yields_WPs_{0}.csv'.format(croptype))
-    csv_file = open(csv_filename, 'w')
+    csv_file = open(csv_filename, 'wb')
     writer = csv.writer(csv_file, delimiter=';')
     writer.writerow(["Startdate", "Enddate", "Yield [kg/ha]", "Yield_pr [kg/ha]", "Yield_irr [kg/ha]", "WP [kg/m3]", "WP_blue [kg/m3]", "WP_green [kg/m3]", "WC [km3]", "WC_blue [km3]", "WC_green [km3]"])
     
@@ -422,7 +417,7 @@ def calc_Y_WP_seasons(start_dates, end_dates, lu_fh, lu_class, croptype, etgreen
         os.makedirs(output_dir)    
     
     csv_filename = os.path.join(output_dir, 'Yields_WPs_{0}.csv'.format(croptype))
-    csv_file = open(csv_filename, 'w')
+    csv_file = open(csv_filename, 'wb')
     writer = csv.writer(csv_file, delimiter=';')
     
     writer.writerow(["Startdate", "Enddate", "Yield [kg/ha]", "Yield_pr [kg/ha]", "Yield_irr [kg/ha]", "WP [kg/m3]", "WP_blue [kg/m3]", "WP_green [kg/m3]", "WC [km3]", "WC_blue [km3]", "WC_green [km3]"])
@@ -519,7 +514,7 @@ def calc_Y_WP_season(startdate, enddate, lu_fh, lu_class, croptype, etgreen_fhs,
     Wc_green : float
         The green water consumption for the croptype.
     """
-    common_dates = becgis.common_dates([etblue_dates, etgreen_dates, p_dates, ndm_dates])
+    common_dates = becgis.CommonDates([etblue_dates, etgreen_dates, p_dates, ndm_dates])
     
     harvest_index = HIWC_dict[croptype][0]  
     moisture_content = HIWC_dict[croptype][1]
@@ -548,23 +543,23 @@ def calc_Y_WP_season(startdate, enddate, lu_fh, lu_class, croptype, etgreen_fhs,
         fractions[0] = (start_month_length - startdate.day + 1) / start_month_length
         fractions[-1] = (enddate.day -1) / end_month_length
         
-        NDMs = np.stack([becgis.open_as_array(ndm_fhs[ndm_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
+        NDMs = np.stack([becgis.OpenAsArray(ndm_fhs[ndm_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
         NDM = np.nansum(NDMs, axis=2)
         del NDMs
         
-        ETGREENs = np.stack([becgis.open_as_array(etgreen_fhs[etgreen_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
+        ETGREENs = np.stack([becgis.OpenAsArray(etgreen_fhs[etgreen_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
         ETGREEN = np.nansum(ETGREENs, axis=2)
         del ETGREENs
         
-        ETBLUEs = np.stack([becgis.open_as_array(etblue_fhs[etblue_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
+        ETBLUEs = np.stack([becgis.OpenAsArray(etblue_fhs[etblue_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
         ETBLUE = np.nansum(ETBLUEs, axis=2)
         del ETBLUEs
         
-        Ps = np.stack([becgis.open_as_array(p_fhs[p_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
+        Ps = np.stack([becgis.OpenAsArray(p_fhs[p_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
         P = np.nansum(Ps, axis=2)
         del Ps
         
-        LULC = becgis.open_as_array(lu_fh)
+        LULC = becgis.OpenAsArray(lu_fh)
         
         NDM[NDM == 0] = np.nan
         NDM[LULC != lu_class] = ETBLUE[LULC != lu_class] = ETGREEN[LULC != lu_class] =  np.nan
@@ -604,7 +599,7 @@ def calc_Y_WP_season(startdate, enddate, lu_fh, lu_class, croptype, etgreen_fhs,
         Et_blue = np.nanmean(ETBLUE)
         Et_green = np.nanmean(ETGREEN)
         
-        areas = becgis.map_pixel_area_km(lu_fh)
+        areas = becgis.MapPixelAreakm(lu_fh)
         Wc_blue = np.nansum(ETBLUE / 1000**2 * areas)
         Wc_green = np.nansum(ETGREEN / 1000**2 * areas)
         Wc = Wc_blue + Wc_green
@@ -657,7 +652,7 @@ def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filety
     ax.set_title('Seasonal Yield, {0} in {1}'.format(croptype, catchment_name))
     ax.set_xlabel('Time')
     ax.set_ylabel('Yield [kg/ha]')
-    [r.set_zorder(10) for r in ax.spines.values()]
+    [r.set_zorder(10) for r in ax.spines.itervalues()]
     fig.autofmt_xdate()
     ax.legend(loc = 'upper left',fancybox=True, shadow=True)
     ax.set_ylim([0, np.max(Y) * 1.2])
@@ -681,11 +676,12 @@ def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filety
     ax.set_xlabel('Time')
     ax.set_ylim([0, max(max(WP), max(WPblue), max(WPgreen)) *1.2])
     fig.autofmt_xdate()
-    [r.set_zorder(10) for r in ax.spines.values()]
+    [r.set_zorder(10) for r in ax.spines.itervalues()]
     plt.savefig(os.path.join(output_dir,'{0}_wps.{1}'.format(croptype,filetype)))    
 
-
-
+import pandas as pd
+import xml.etree.ElementTree as ET
+import subprocess
 
 def create_sheet3_png(basin, period, units, data, output, template=False):
 
@@ -2156,15 +2152,24 @@ def create_sheet3_png(basin, period, units, data, output, template=False):
     else:
         xml_txt_box.getchildren()[0].text = '-'
 
+    # svg to string
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+
+    # Get the paths based on the environment variable
+    #WA_env_paths = os.environ["WA_PATHS"].split(';')
+    #Inkscape_env_path = WA_env_paths[1]
+    Path_Inkscape = get_path('inkscape')
+
     # Export svg to png
-    tempout_path = output[0].replace('.pdf', '_temporary.svg')
-    tree1.write(tempout_path)    
-    cairosvg.svg2pdf(url=tempout_path, write_to=output[0])    
+    tempout_path = output[0].replace('.png', '_temporary.svg')
+    tree1.write(tempout_path)
+    subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output[0], '-d 300'])
     os.remove(tempout_path)
-    
-    tempout_path = output[1].replace('.pdf', '_temporary.svg')
-    tree2.write(tempout_path)    
-    cairosvg.svg2pdf(url=tempout_path, write_to=output[1])    
+
+        # Export svg to png
+    tempout_path = output[1].replace('.png', '_temporary.svg')
+    tree2.write(tempout_path)
+    subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output[1], '-d 300'])
     os.remove(tempout_path)
 
     return output

@@ -4,22 +4,19 @@ Created on Tue Dec 13 16:55:04 2016
 
 @author: bec
 """
-from __future__ import print_function
-from builtins import str
-from builtins import range
 import os
 import gdal
 import shutil
 import csv
 import datetime
 import calendar
+import subprocess
 from scipy import interpolate
 import tempfile as tf
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import xml.etree.ElementTree as ET
-import cairosvg
 
 import WA_Hyperloop.becgis as becgis
 from WA_Hyperloop import hyperloop as hl
@@ -29,37 +26,37 @@ from WA_Hyperloop.grace_tr_correction import correct_var
 from WA_Hyperloop.sup_is_etb_in_natural_lu import bf_reduction_with_gwsup
 
 def sw_ret_wpix(non_consumed_dsro, non_consumed_dperc, lu, ouput_dir_ret_frac):
-    DSRO = becgis.open_as_array(non_consumed_dsro, nan_values = True)
-    DPERC = becgis.open_as_array(non_consumed_dperc, nan_values = True)
+    DSRO = becgis.OpenAsArray(non_consumed_dsro, nan_values = True)
+    DPERC = becgis.OpenAsArray(non_consumed_dperc, nan_values = True)
     DSRO[np.isnan(DSRO)] = 0
     DPERC[np.isnan(DPERC)] = 0
-    LU = becgis.open_as_array(lu, nan_values = True)
+    LU = becgis.OpenAsArray(lu, nan_values = True)
     DTOT = DSRO + DPERC
     SWRETFRAC = LU * 0
     SWRETFRAC[DTOT > 0] = (DSRO/(DTOT))[DTOT > 0]
     
-    geo_info = becgis.get_geoinfo(non_consumed_dsro)
+    geo_info = becgis.GetGeoInfo(non_consumed_dsro)
     fh = os.path.join(ouput_dir_ret_frac, 'sw_return_fraction' + os.path.basename(non_consumed_dsro)[-13:])
-    becgis.create_geotiff(fh, SWRETFRAC, *geo_info)
+    becgis.CreateGeoTiff(fh, SWRETFRAC, *geo_info)
     return fh    
 
 def multiply_raster_by_c(sw_supply_fraction_tif, alpha):
-    geo_info = becgis.get_geoinfo(sw_supply_fraction_tif)
-    SW_FRAC = becgis.open_as_array(sw_supply_fraction_tif, nan_values = True)
+    geo_info = becgis.GetGeoInfo(sw_supply_fraction_tif)
+    SW_FRAC = becgis.OpenAsArray(sw_supply_fraction_tif, nan_values = True)
     SW_FRAC = SW_FRAC * alpha
-    becgis.create_geotiff(sw_supply_fraction_tif, SW_FRAC, *geo_info)
+    becgis.CreateGeoTiff(sw_supply_fraction_tif, SW_FRAC, *geo_info)
     
 def calc_difference(ds1, ds2, output_folder):
     
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
         
-    common_dates = becgis.common_dates([ds1[1], ds2[1]])
+    common_dates = becgis.CommonDates([ds1[1], ds2[1]])
     
     for dt in common_dates:
     
-        DS1 = becgis.open_as_array(ds1[0][ds1[1] == dt][0], nan_values = True)
-        DS2 = becgis.open_as_array(ds2[0][ds2[1] == dt][0], nan_values = True)
+        DS1 = becgis.OpenAsArray(ds1[0][ds1[1] == dt][0], nan_values = True)
+        DS2 = becgis.OpenAsArray(ds2[0][ds2[1] == dt][0], nan_values = True)
         
         DS2[np.isnan(DS2)] = 0.0
         
@@ -68,11 +65,11 @@ def calc_difference(ds1, ds2, output_folder):
         fn = 'temp_{0}{1}.tif'.format(dt.year, str(dt.month).zfill(2))
         fh = os.path.join(output_folder, fn)
         
-        geo_info = becgis.get_geoinfo(ds1[0][0])
+        geo_info = becgis.GetGeoInfo(ds1[0][0])
         
-        becgis.create_geotiff(fh, DIFF, *geo_info)
+        becgis.CreateGeoTiff(fh, DIFF, *geo_info)
         
-    diff = becgis.sort_files(output_folder, [-10,-6], month_position = [-6,-4])[0:2]
+    diff = becgis.SortFiles(output_folder, [-10,-6], month_position = [-6,-4])[0:2]
 
     return diff
 
@@ -91,7 +88,7 @@ def calc_recharge(perc, dperc):
     output_folder2.insert(1, os.path.sep)
     output_folder2 = os.path.join(*output_folder2)
     
-    rchrg = becgis.average_series(diff[0], diff[1], 1, 
+    rchrg = becgis.AverageSeries(diff[0], diff[1], 1, 
                                  output_folder2, para_name = 'rchrg')
 #    shutil.rmtree(output_folder1)
     
@@ -99,19 +96,18 @@ def calc_recharge(perc, dperc):
 
 def create_gw_supply(metadata, complete_data, output_dir):
     
-    common_dates = becgis.common_dates([complete_data['supply_total'][1], complete_data['supply_sw'][1],
-                                        complete_data['p'][1]])
+    common_dates = becgis.CommonDates([complete_data['supply_total'][1], complete_data['supply_sw'][1]])
     for date in common_dates:
         
         total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
         supply_sw_tif = complete_data['supply_sw'][0][complete_data['supply_sw'][1] == date][0]
         
-        SUP = becgis.open_as_array(total_supply_tif, nan_values = True)
-        SW = becgis.open_as_array(supply_sw_tif, nan_values = True)
+        SUP = becgis.OpenAsArray(total_supply_tif, nan_values = True)
+        SW = becgis.OpenAsArray(supply_sw_tif, nan_values = True)
         
         GW = SUP - SW
         
-        geo_info = becgis.get_geoinfo(supply_sw_tif)
+        geo_info = becgis.GetGeoInfo(supply_sw_tif)
         
         folder = os.path.join(output_dir, 'data', 'supply_gw')
         if not os.path.exists(folder):
@@ -119,9 +115,9 @@ def create_gw_supply(metadata, complete_data, output_dir):
 
         supply_gw_tif = os.path.join(folder, 'supply_gw_{0}{1}.tif'.format(date.year, str(date.month).zfill(2)))
         
-        becgis.create_geotiff(supply_gw_tif, GW, *geo_info)
+        becgis.CreateGeoTiff(supply_gw_tif, GW, *geo_info)
         
-    meta = becgis.sort_files(folder, [-10,-6], month_position = [-6,-4])[0:2]
+    meta = becgis.SortFiles(folder, [-10,-6], month_position = [-6,-4])[0:2]
     
     return meta
    
@@ -156,7 +152,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
 
     complete_data['recharge'] = calc_recharge(complete_data['perc'], complete_data['dperc'])
 
-    common_dates = becgis.common_dates([complete_data['recharge'][1],
+    common_dates = becgis.CommonDates([complete_data['recharge'][1],
                                        complete_data['etb'][1],
                                        complete_data['lai'][1],
                                        complete_data['etref'][1],
@@ -168,13 +164,13 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     if lu_based_supply_split:
         sw_supply_fraction_tif = fractions(metadata['lu'], sw_supply_fractions, lucs, output_dir2, filename = 'sw_supply_fraction.tif')
         sw_supply_fraction_tif = update_irrigation_fractions(metadata['lu'], sw_supply_fraction_tif, lucs, equiped_sw_irrigation_tif)
-        print('max supply frac:', np.nanmax(becgis.open_as_array(sw_supply_fraction_tif, nan_values = True)))
+        print 'max supply frac:', np.nanmax(becgis.OpenAsArray(sw_supply_fraction_tif, nan_values = True))
     else:
-        driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(metadata['lu'])
-        mask = (~np.isnan(becgis.open_as_array(metadata['lu'], nan_values=True))).astype(int)
+        driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(metadata['lu'])
+        mask = (~np.isnan(becgis.OpenAsArray(metadata['lu'], nan_values=True))).astype(int)
         mask[mask==0] = -9999
         sw_supply_fraction_tif = os.path.join(output_dir2, 'sw_supply_fraction.tif')
-        becgis.create_geotiff(sw_supply_fraction_tif, mask, driver, NDV, xsize, ysize, GeoT, Projection)
+        becgis.CreateGeoTiff(sw_supply_fraction_tif, mask, driver, NDV, xsize, ysize, GeoT, Projection)
         
     for date in common_dates:
         conventional_et_tif = complete_data['etb'][0][complete_data['etb'][1] == date][0]
@@ -203,7 +199,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
                         os.path.split(output_dir)[0], 'p-et-tr+supply_swa',
                         'supply_sw', slope = True,  bounds = bounds)
 
-        print('-----> alpha = {0}, beta = {1}, theta = {2}'.format(a[0], a[1], a[2]))
+        print '-----> alpha = {0}, beta = {1}, theta = {2}'.format(a[0], a[1], a[2])
 
         # multiply_raster_by_c(sw_supply_fraction_tif, a[0]) #claire - update sw_fraction_tif
     else: 
@@ -249,7 +245,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         # Calculate the blue water demand
         ###
         demand_tif = calc_demand(complete_data['lai'][0][complete_data['lai'][1] == date][0], complete_data['etref'][0][complete_data['etref'][1] == date][0], complete_data['p'][0][complete_data['p'][1] == date][0], metadata['lu'], date, os.path.join(output_dir, 'data'))
-        if "population_tif" in list(global_data.keys()):
+        if "population_tif" in global_data.keys():
             population_tif = global_data["population_tif"]
             residential_demand = include_residential_supply(population_tif, metadata['lu'], total_supply_tif, date, lucs, 110, wcpc_minimal = 100)
             becgis.set_classes_to_value(demand_tif, metadata['lu'], lucs['Residential'], value = residential_demand)
@@ -271,18 +267,18 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         sheet4_csv =create_sheet4_csv(entries_sh4, metadata['lu'], lucs, date, os.path.join(output_dir2, 'sheet4_monthly'), convert_unit = 1)
         
         create_sheet4(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), ['km3/month', 'km3/month'], [sheet4_csv, sheet4_csv], 
-                          [sheet4_csv.replace('.csv','_a.pdf'), sheet4_csv.replace('.csv','_b.pdf')], template = [get_path('sheet4_1_svg'), get_path('sheet4_2_svg')], smart_unit = True)
+                          [sheet4_csv.replace('.csv','_a.png'), sheet4_csv.replace('.csv','_b.png')], template = [get_path('sheet4_1_svg'), get_path('sheet4_2_svg')], smart_unit = True)
         
         return_flow_sw_sw = np.append(return_flow_sw_sw, return_flow_sw_sw_tif)
         return_flow_sw_gw = np.append(return_flow_sw_gw, return_flow_sw_gw_tif)
         return_flow_gw_sw = np.append(return_flow_gw_sw, return_flow_gw_sw_tif)
         return_flow_gw_gw = np.append(return_flow_gw_gw, return_flow_gw_gw_tif)
         
-        print("sheet 4 finished for {0} (going to {1})".format(date, common_dates[-1]))
+        print "sheet 4 finished for {0} (going to {1})".format(date, complete_data['etb'][1][-1])
         
         recharge_tif = complete_data["recharge"][0][complete_data["recharge"][1] == date][0]
-        baseflow = accumulate_per_classes(metadata['lu'], complete_data["bf"][0][complete_data["bf"][1] == date][0], list(range(1,81)), scale = 1e-6)
-        capillaryrise = 0.01 * accumulate_per_classes(metadata['lu'], supply_gw_tif, list(range(1,81)), scale = 1e-6)
+        baseflow = accumulate_per_classes(metadata['lu'], complete_data["bf"][0][complete_data["bf"][1] == date][0], range(1,81), scale = 1e-6)
+        capillaryrise = 0.01 * accumulate_per_classes(metadata['lu'], supply_gw_tif, range(1,81), scale = 1e-6)
 
         entries_sh6 = {'VERTICAL_RECHARGE': recharge_tif,
                        'VERTICAL_GROUNDWATER_WITHDRAWALS': supply_gw_tif,
@@ -298,9 +294,9 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     
         sheet6_csv = create_sheet6_csv(entries_sh6, entries_2_sh6, metadata['lu'], lucs, date, os.path.join(output_dir3,'sheet6_monthly'), convert_unit = 1)
         
-        create_sheet6(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), 'km3/month', sheet6_csv, sheet6_csv.replace('.csv', '.pdf'), template = get_path('sheet6_svg'), smart_unit = True)
+        create_sheet6(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), 'km3/month', sheet6_csv, sheet6_csv.replace('.csv', '.png'), template = get_path('sheet6_svg'), smart_unit = True)
         
-        print("sheet 6 finished")
+        print "sheet 6 finished"
         
     csv4_folder = os.path.join(output_dir2, 'sheet4_monthly')
     csv4_yearly_folder = os.path.join(output_dir2, 'sheet4_yearly')
@@ -314,12 +310,12 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     
     for csv_file in csv6:
         year = csv_file[-8:-4]
-        create_sheet6(metadata['name'], year, 'km3/year', csv_file, csv_file.replace('.csv', '.pdf'), template = get_path('sheet6_svg'), smart_unit = True)
+        create_sheet6(metadata['name'], year, 'km3/year', csv_file, csv_file.replace('.csv', '.png'), template = get_path('sheet6_svg'), smart_unit = True)
     
     for cv in sheet4_csv_yearly:
         year = int(cv[-8:-4])
         create_sheet4(metadata['name'], '{0}'.format(year), ['km3/year', 'km3/year'], [cv, cv], 
-                          [cv.replace('.csv','_a.pdf'), cv.replace('.csv','_b.pdf')], template = [get_path('sheet4_1_svg'), get_path('sheet4_2_svg')], smart_unit = True)
+                          [cv.replace('.csv','_a.png'), cv.replace('.csv','_b.png')], template = [get_path('sheet4_1_svg'), get_path('sheet4_2_svg')], smart_unit = True)
 
     complete_data['return_flow_sw_sw'] = (return_flow_sw_sw, common_dates)
     complete_data['return_flow_sw_gw'] = (return_flow_sw_gw, common_dates)
@@ -362,20 +358,20 @@ def update_irrigation_fractions(lu_tif, fraction_tif, lucs, equiped_sw_irrigatio
     fraction_tif : str
         Updated map.
     """
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(fraction_tif)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(fraction_tif)
     
-    sw_tif = becgis.match_proj_res_ndv(lu_tif, np.array([equiped_sw_irrigation_tif]), tf.mkdtemp())[0]
+    sw_tif = becgis.MatchProjResNDV(lu_tif, np.array([equiped_sw_irrigation_tif]), tf.mkdtemp())[0]
     
-    SW = becgis.open_as_array(sw_tif, nan_values = True) / 100
-    LULC = becgis.open_as_array(lu_tif, nan_values = True)
-    FRACTIONS = becgis.open_as_array(fraction_tif, nan_values = True)
+    SW = becgis.OpenAsArray(sw_tif, nan_values = True) / 100
+    LULC = becgis.OpenAsArray(lu_tif, nan_values = True)
+    FRACTIONS = becgis.OpenAsArray(fraction_tif, nan_values = True)
     
     mask = np.logical_or.reduce([LULC == value for value in lucs['Irrigated crops']])
     
     SW[np.isnan(SW)] = np.nanmean(SW)    
     FRACTIONS[mask] = SW[mask]
     
-    becgis.create_geotiff(fraction_tif, FRACTIONS, driver, NDV, xsize, ysize, GeoT, Projection)
+    becgis.CreateGeoTiff(fraction_tif, FRACTIONS, driver, NDV, xsize, ysize, GeoT, Projection)
     
     return fraction_tif
 
@@ -401,12 +397,12 @@ def non_recoverable_fractions(lu_tif, wpl_tif, lucs, output_folder):
     tif : str
         String pointing to file with results.
     """
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_tif)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_tif)
     
-    wpl_tif = becgis.match_proj_res_ndv(lu_tif, np.array([wpl_tif]), tf.mkdtemp())[0]
+    wpl_tif = becgis.MatchProjResNDV(lu_tif, np.array([wpl_tif]), tf.mkdtemp())[0]
     
-    WPL = becgis.open_as_array(wpl_tif, nan_values = True)
-    LULC = becgis.open_as_array(lu_tif, nan_values = True)
+    WPL = becgis.OpenAsArray(wpl_tif, nan_values = True)
+    LULC = becgis.OpenAsArray(lu_tif, nan_values = True)
     
     manmade_categories = ['Irrigated crops','Managed water bodies','Aquaculture','Residential','Greenhouses','Other']
     
@@ -422,7 +418,7 @@ def non_recoverable_fractions(lu_tif, wpl_tif, lucs, output_folder):
     FRACTIONS[mask] = 1.0
     
     tif = os.path.join(output_folder, 'non_recov_fraction.tif')
-    becgis.create_geotiff(tif, FRACTIONS, driver, NDV, xsize, ysize, GeoT, Projection)
+    becgis.CreateGeoTiff(tif, FRACTIONS, driver, NDV, xsize, ysize, GeoT, Projection)
     return tif
     
 def calc_demand(lai_tif, etref_tif, p_tif, lu_tif, date, output_folder):
@@ -452,11 +448,12 @@ def calc_demand(lai_tif, etref_tif, p_tif, lu_tif, date, output_folder):
     fh : str
         Map of demands.
     """
+    month_labels = becgis.GetMonthLabels()
        
-    LAI = becgis.open_as_array(lai_tif, nan_values = True)
-    ETREF = becgis.open_as_array(etref_tif, nan_values = True)
-    P = becgis.open_as_array(p_tif, nan_values = True)
-    LULC = becgis.open_as_array(lu_tif, nan_values= True)
+    LAI = becgis.OpenAsArray(lai_tif, nan_values = True)
+    ETREF = becgis.OpenAsArray(etref_tif, nan_values = True)
+    P = becgis.OpenAsArray(p_tif, nan_values = True)
+    LULC = becgis.OpenAsArray(lu_tif, nan_values= True)
     
     water_mask = np.logical_or.reduce([LULC == value for value in [4, 5, 30, 23, 24, 63]])
     
@@ -470,7 +467,7 @@ def calc_demand(lai_tif, etref_tif, p_tif, lu_tif, date, output_folder):
     
     DEMAND = PET - EFFECTIVE_RAINFALL
     
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_tif)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_tif)
     
     DEMAND[LULC == NDV] = NDV
     DEMAND[np.isnan(DEMAND)] = NDV
@@ -479,9 +476,9 @@ def calc_demand(lai_tif, etref_tif, p_tif, lu_tif, date, output_folder):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
-    fh = os.path.join(output_folder, 'demand_{0}_{1:02}.tif'.format(date.year, date.month))
+    fh = os.path.join(output_folder, 'demand_{0}_{1}.tif'.format(date.year, month_labels[date.month]))
     
-    becgis.create_geotiff(fh, DEMAND, driver, NDV, xsize, ysize, GeoT, Projection)
+    becgis.CreateGeoTiff(fh, DEMAND, driver, NDV, xsize, ysize, GeoT, Projection)
     
     return fh  
     
@@ -518,16 +515,16 @@ def include_residential_supply(population_fh, lu_fh, total_supply_fh, date, shee
     """
     temp_folder = tf.mkdtemp()
     
-    population_fh = becgis.match_proj_res_ndv(lu_fh, np.array([population_fh]), temp_folder)
+    population_fh = becgis.MatchProjResNDV(lu_fh, np.array([population_fh]), temp_folder)
     
-    POP = becgis.open_as_array(population_fh[0], nan_values = True)
-    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    POP = becgis.OpenAsArray(population_fh[0], nan_values = True)
+    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
     
     classes = sheet4_lucs['Residential']
     mask = np.logical_or.reduce([LULC == value for value in classes])
     
     # Get area of each pixel.
-    AREA = becgis.map_pixel_area_km(lu_fh)
+    AREA = becgis.MapPixelAreakm(lu_fh)
     
     # Convert [pop/ha] to [pop/pixel]
     POP *= AREA * 100
@@ -539,13 +536,13 @@ def include_residential_supply(population_fh, lu_fh, total_supply_fh, date, shee
     
     SUPPLY_new[np.isnan(SUPPLY_new)] = np.nanmean(SUPPLY_new[mask])
     
-    SUPPLY = becgis.open_as_array(total_supply_fh, nan_values = True)
+    SUPPLY = becgis.OpenAsArray(total_supply_fh, nan_values = True)
     
     SUPPLY[mask] += SUPPLY_new[mask]
     
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_fh)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
     
-    becgis.create_geotiff(total_supply_fh, SUPPLY, driver, NDV, xsize, ysize, GeoT, Projection)
+    becgis.CreateGeoTiff(total_supply_fh, SUPPLY, driver, NDV, xsize, ysize, GeoT, Projection)
     
     if wcpc_minimal is not None:
         SUPPLY_demand = wcpc_minimal * POP * monthlength * 10**-6 / AREA
@@ -578,17 +575,17 @@ def accumulate_per_classes(lu_fh, fh, classes, scale = 1e-6):
         The sum or mean (depending on scale) of the masked values in fh.
     
     """
-    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
     mask = np.logical_or.reduce([LULC == value for value in classes])
-    if np.any([type(fh) is str, type(fh) is np.string_, type(fh) is np.str_ ]):
-        data = becgis.open_as_array(fh, nan_values = True)
+    if np.any([type(fh) is str, type(fh) is np.string_]):
+        data = becgis.OpenAsArray(fh, nan_values = True)
     else:
         data = fh
         
     if scale == None:
         accum = np.nanmean(data[mask])
     else:
-        areas = becgis.map_pixel_area_km(lu_fh)
+        areas = becgis.MapPixelAreakm(lu_fh)
         accum = np.nansum(data[mask] * scale * areas[mask])
     return accum
 
@@ -624,9 +621,9 @@ def accumulate_per_categories(lu_fh, fh, dictionary, scale = 1e-6):
     
     """
     accumulated = dict()
-    for category in list(dictionary.keys()):
+    for category in dictionary.keys():
         classes = dictionary[category]
-        if len(classes) == 0:
+        if len(classes) is 0:
             classes = [-99]
         accumulated[category] = accumulate_per_classes(lu_fh, fh, classes, scale = scale)
     return accumulated
@@ -662,12 +659,12 @@ def plot_per_category(fhs, dates, lu_fh, dictionary, output_fh, scale = 1e-6, gr
         None, the original unit might change. Default is ['ET', 'mm/month'].
     """
     ets_accumulated = dict()
-    for key in list(dictionary.keys()):
+    for key in dictionary.keys():
         ets_accumulated[key] = np.array([])
         
     for et_fh in fhs:
         et_accumulated = accumulate_per_categories(lu_fh, et_fh, dictionary, scale = scale)
-        for key in list(et_accumulated.keys()):
+        for key in et_accumulated.keys():
             ets_accumulated[key] = np.append(ets_accumulated[key], et_accumulated[key])
             
     colors =  ['#6bb8cc', '#7bbebd', '#87c5ad', '#91cb9d', '#9ad28d', '#a1d97c', '#acd27a', '#b9c47f', '#c3b683',
@@ -679,8 +676,8 @@ def plot_per_category(fhs, dates, lu_fh, dictionary, output_fh, scale = 1e-6, gr
     fig = plt.figure(figsize = (13,13))
     plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
     ax = fig.add_subplot(111)
-    for key in list(ets_accumulated.keys()):
-        if np.any([np.nansum(ets_accumulated[key]) <= 0.01 * np.nansum(list(ets_accumulated.values())), np.isnan(np.nansum(ets_accumulated[key]))]):
+    for key in ets_accumulated.keys():
+        if np.any([np.nansum(ets_accumulated[key]) <= 0.01 * np.nansum(ets_accumulated.values()), np.isnan(np.nansum(ets_accumulated[key]))]):
             continue
         else:
             baseline += ets_accumulated[key]
@@ -701,7 +698,7 @@ def plot_per_category(fhs, dates, lu_fh, dictionary, output_fh, scale = 1e-6, gr
     ax.set_title('Accumulated {0} per Landuse Category'.format(quantity_unit[0]))
     ax.set_xlim([dates[0], dates[-1]])
     ax.set_ylim([0, max(baseline) * 1.1])
-    [i.set_zorder(10) for i in ax.spines.values()]
+    [i.set_zorder(10) for i in ax.spines.itervalues()]
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
     handles, labels = ax.get_legend_handles_labels()
@@ -764,11 +761,11 @@ def distance_to_class(lu_fh, output_folder, proximity_to_values = 23, approximat
     dst_ds = None
     
     if approximate_kms:
-        lengths = becgis.map_pixel_area_km(lu_fh, approximate_lengths = True)
-        distance = becgis.open_as_array(distance_fh)
+        lengths = becgis.MapPixelAreakm(lu_fh, approximate_lengths = True)
+        distance = becgis.OpenAsArray(distance_fh)
         array = distance * lengths
-        driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(distance_fh)
-        becgis.create_geotiff(distance_fh, array, driver, NDV, xsize, ysize, GeoT, Projection)
+        driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(distance_fh)
+        becgis.CreateGeoTiff(distance_fh, array, driver, NDV, xsize, ysize, GeoT, Projection)
     
     print('Finished calculating distances to waterbodies.')
     return distance_fh
@@ -822,25 +819,25 @@ def split_flows(flow_fh, fraction_fh, output_folder, date, flow_names = ['sw','g
         flow_two_fh = os.path.join(output_folder_two, '{0}_{1}.tif'.format(flow_names[1],date))        
     
     if type(fraction_fh) == np.float64:
-        FLOW = becgis.open_as_array(flow_fh, nan_values = True)
+        FLOW = becgis.OpenAsArray(flow_fh, nan_values = True)
 
         FLOW_one = fraction_fh * FLOW
         FLOW_two = (1. - fraction_fh) * FLOW     
     
     else:
         list_of_maps = [np.array([flow_fh]), np.array([fraction_fh])]
-        becgis.assert_proj_res_ndv(list_of_maps)
+        becgis.AssertProjResNDV(list_of_maps)
         
-        FLOW = becgis.open_as_array(flow_fh, nan_values = True)
+        FLOW = becgis.OpenAsArray(flow_fh, nan_values = True)
         
-        FRACTION = becgis.open_as_array(fraction_fh, nan_values = True)
+        FRACTION = becgis.OpenAsArray(fraction_fh, nan_values = True)
         
         FLOW_one = FRACTION * FLOW
         FLOW_two = (1. - FRACTION) * FLOW
     
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(flow_fh)
-    becgis.create_geotiff(flow_one_fh, FLOW_one, driver, NDV, xsize, ysize, GeoT, Projection)
-    becgis.create_geotiff(flow_two_fh, FLOW_two, driver, NDV, xsize, ysize, GeoT, Projection)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(flow_fh)
+    becgis.CreateGeoTiff(flow_one_fh, FLOW_one, driver, NDV, xsize, ysize, GeoT, Projection)
+    becgis.CreateGeoTiff(flow_two_fh, FLOW_two, driver, NDV, xsize, ysize, GeoT, Projection)
     
     return flow_one_fh, flow_two_fh
 
@@ -863,8 +860,8 @@ def insert_values(results, test, lu_category):
     results : dict
         Dictionary with added keys.
     """
-    becgis.assert_same_keys([results, test])
-    for key in list(test.keys()):
+    becgis.AssertSameKeys([results, test])
+    for key in test.keys():
         results[key][lu_category] = test[key]
     return results
     
@@ -892,18 +889,15 @@ def create_results_dict(entries, lu_fh, sheet4_lucs, aquaculture = None, power =
     results : dict
         Dictionary with values to be saved by create_sheet4_csv in a csv-file.
     """
-    list_of_maps = [np.array(value) for value in list(entries.values()) if not np.any([value is None, type(value) is dict])]
-    becgis.assert_proj_res_ndv(list_of_maps)
+    list_of_maps = [np.array(value) for value in entries.values() if not np.any([value is None, type(value) is dict])]
+    becgis.AssertProjResNDV(list_of_maps)
     
     results = dict()
         
-    for key in list(entries.keys()):
+    for key in entries.keys():
         if entries[key] is None:
-            null_dictionary = dict()
-            for k2 in sheet4_lucs.keys():
-                null_dictionary[k2] = 0.0        
-            results[key] = null_dictionary
-        if np.any([type(entries[key]) is str, type(entries[key]) is np.string_, type(entries[key]) is np.str_]):
+            results[key] = becgis.ZeroesDictionary(sheet4_lucs)
+        if np.any([type(entries[key]) is str, type(entries[key]) is np.string_]):
             results[key] = accumulate_per_categories(lu_fh, entries[key], sheet4_lucs, scale = 1e-6)
         if type(entries[key]) is dict:
             results[key] = entries[key]
@@ -965,25 +959,27 @@ def create_sheet4_csv(entries, lu_fh, sheet4_lucs, date, output_folder, aquacult
                               'Irrigated crops','Other','Natural Water Bodies']
                               
     results = create_results_dict(entries, lu_fh, sheet4_lucs, aquaculture = aquaculture, power = power, industry = industry)
-        
+    
+    month_labels = {1:'01',2:'02',3:'03',4:'04',5:'05',6:'06',7:'07',8:'08',9:'09',10:'10',11:'11',12:'12'}
+    
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
     if isinstance(date, datetime.date):
-        output_csv_fh = os.path.join(output_folder, 'sheet4_{0}_{1:02}.csv'.format(date.year,date.month))
+        output_csv_fh = os.path.join(output_folder, 'sheet4_{0}_{1}.csv'.format(date.year,month_labels[date.month]))
     else:
         output_csv_fh = os.path.join(output_folder, 'sheet4_{0}.csv'.format(date))
                 
-    first_row = ['LANDUSE_TYPE'] + list(results.keys())
+    first_row = ['LANDUSE_TYPE'] + results.keys()
     
-    csv_file = open(output_csv_fh, 'w')
-    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
+    csv_file = open(output_csv_fh, 'wb')
+    writer = csv.writer(csv_file, delimiter=';')
     writer.writerow(first_row)
     
-    for lu_type in list(results.values())[0].keys():
+    for lu_type in results.values()[0].keys():
         row = list()
         row.append(lu_type)
-        for flow in list(results.keys()):
+        for flow in results.keys():
             row.append(results[flow][lu_type] * convert_unit)
         writer.writerow(row)
         if lu_type in required_landuse_types: 
@@ -1461,7 +1457,7 @@ def create_sheet4(basin, period, units, data, output, template=False, margin = 0
         else:
             xml_txt_box.getchildren()[0].text = 'Part 1: Manmade ({0})'.format(units[1])
 
-        for key in list(p1.keys()):
+        for key in p1.keys():
             xml_txt_box = tree1.findall(".//*[@id='{0}']".format(key))[0]
             if not pd.isnull(p1[key]):
                 xml_txt_box.getchildren()[0].text = '%.2f' % p1[key]
@@ -1484,24 +1480,25 @@ def create_sheet4(basin, period, units, data, output, template=False, margin = 0
         else:
             xml_txt_box.getchildren()[0].text = 'Part 2: Natural Landuse ({0})'.format(units[1])
             
-        for key in list(p2.keys()):
+        for key in p2.keys():
             xml_txt_box = tree2.findall(".//*[@id='{0}']".format(key))[0]
             if not pd.isnull(p2[key]):
                 xml_txt_box.getchildren()[0].text = '%.2f' % p2[key]
             else:
                 xml_txt_box.getchildren()[0].text = '-'    
 
-    # Export svg to png    
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    
     if data[0] is not None:
-        tempout_path = output[0].replace('.pdf', '_temporary.svg')
+        tempout_path = output[0].replace('.png', '_temporary.svg')
         tree1.write(tempout_path)
-        cairosvg.svg2pdf(url=tempout_path, write_to=output[0])
+        subprocess.call([get_path('inkscape'),tempout_path,'--export-png='+output[0], '-d 300'])
         os.remove(tempout_path)
-       
+        
     if data[1] is not None:
-        tempout_path = output[1].replace('.pdf', '_temporary.svg')
+        tempout_path = output[1].replace('.png', '_temporary.svg')
         tree2.write(tempout_path)
-        cairosvg.svg2pdf(url=tempout_path, write_to=output[1])
+        subprocess.call([get_path('inkscape'),tempout_path,'--export-png='+output[1], '-d 300'])
         os.remove(tempout_path)
 
 def fractions(lu_fh, fractions, lucs, output_folder, filename = 'fractions.tif'):
@@ -1525,15 +1522,15 @@ def fractions(lu_fh, fractions, lucs, output_folder, filename = 'fractions.tif')
         Filehandle pointing to the map with fractions.
     """
     fraction_fh = os.path.join(output_folder, filename)
-    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
     FRACTION = np.zeros(np.shape(LULC)) * np.nan
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_fh)
-    for key in list(fractions.keys()):
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
+    for key in fractions.keys():
         classes = lucs[key]
         mask = np.logical_or.reduce([LULC == value for value in classes])
         fraction = fractions[key]
         FRACTION[mask] = fraction
-    becgis.create_geotiff(fraction_fh, FRACTION, driver, NDV, xsize, ysize, GeoT, Projection)
+    becgis.CreateGeoTiff(fraction_fh, FRACTION, driver, NDV, xsize, ysize, GeoT, Projection)
     return fraction_fh
   
 def calc_delta_flow(supply_fh, conventional_et_fh, output_folder, date, non_conventional_et_fh = None, other_consumed_fh = None):
@@ -1562,14 +1559,14 @@ def calc_delta_flow(supply_fh, conventional_et_fh, output_folder, date, non_conv
         Filehandle pointing to a map with the per pixel difference between
         the supply and consumption.
     """
-    SUPPLY = becgis.open_as_array(supply_fh, nan_values = True)
+    SUPPLY = becgis.OpenAsArray(supply_fh, nan_values = True)
     
-    CONSUMED = becgis.open_as_array(conventional_et_fh, nan_values = True)
+    CONSUMED = becgis.OpenAsArray(conventional_et_fh, nan_values = True)
     if other_consumed_fh != None:
-        OTHER = becgis.open_as_array(other_consumed_fh, nan_values = True)
+        OTHER = becgis.OpenAsArray(other_consumed_fh, nan_values = True)
         CONSUMED = np.nansum([CONSUMED, OTHER], axis = 0)
     if non_conventional_et_fh != None:
-        NON_CONV = becgis.open_as_array(non_conventional_et_fh, nan_values = True)
+        NON_CONV = becgis.OpenAsArray(non_conventional_et_fh, nan_values = True)
         CONSUMED = np.nansum([CONSUMED, NON_CONV], axis = 0)
     
     DELTA = SUPPLY - CONSUMED
@@ -1582,8 +1579,8 @@ def calc_delta_flow(supply_fh, conventional_et_fh, output_folder, date, non_conv
     else:
         delta_fh = os.path.join(output_folder,'delta_{0}.tif'.format(date))
     
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(supply_fh)
-    becgis.create_geotiff(delta_fh, DELTA, driver, NDV, xsize, ysize, GeoT, Projection)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(supply_fh)
+    becgis.CreateGeoTiff(delta_fh, DELTA, driver, NDV, xsize, ysize, GeoT, Projection)
     
     return delta_fh
 
@@ -1623,22 +1620,24 @@ def create_sheet6_csv(entries, entries_2, lu_fh, lucs, date, output_folder, conv
                 
     results_sh6 = create_results_dict(entries, lu_fh, lucs)      
     
+    month_labels = becgis.GetMonthLabels()
+    
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     
     if isinstance(date, datetime.date):
-        output_csv_fh = os.path.join(output_folder, 'sheet6_{0}_{1:02}.csv'.format(date.year,date.month))
+        output_csv_fh = os.path.join(output_folder, 'sheet6_{0}_{1}.csv'.format(date.year,month_labels[date.month]))
     else:
         output_csv_fh = os.path.join(output_folder, 'sheet6_{0}.csv'.format(date))
                 
     first_row = ['TYPE', 'SUBTYPE', 'VALUE']
     
-    csv_file = open(output_csv_fh, 'w')
+    csv_file = open(output_csv_fh, 'wb')
     writer = csv.writer(csv_file, delimiter=';')
     writer.writerow(first_row)
     
-    for SUBTYPE in list(results_sh6.keys()):
-        for TYPE in list(results_sh6[SUBTYPE].keys()):
+    for SUBTYPE in results_sh6.keys():
+        for TYPE in results_sh6[SUBTYPE].keys():
             row = [TYPE, SUBTYPE, results_sh6[SUBTYPE][TYPE] * convert_unit]
             writer.writerow(row)
             if TYPE in required_landuse_types:
@@ -1650,7 +1649,7 @@ def create_sheet6_csv(entries, entries_2, lu_fh, lucs, date, output_folder, conv
         writer.writerow([missing_landuse_type, 'RETURN_FLOW_GROUNDWATER', 'nan'])
         writer.writerow([missing_landuse_type, 'RETURN_FLOW_SURFACEWATER', 'nan'])
                    
-    for key in list(entries_2.keys()):
+    for key in entries_2.keys():
         row = ['NON_LU_SPECIFIC', key, entries_2[key]]
         writer.writerow(row)
             
@@ -1691,7 +1690,7 @@ def create_sheet6(basin, period, unit, data, output, template=False, decimal = 1
     >>> create_sheet6(basin='Helmand', period='2007-2011',
                   units = 'km3/yr',
                   data = r'C:\Sheets\csv\Sample_sheet6.csv',
-                  output = r'C:\Sheets\sheet_6.pdf')
+                  output = r'C:\Sheets\sheet_6.png')
     """
     df1 = pd.read_csv(data, sep=';')
     
@@ -1766,7 +1765,7 @@ def create_sheet6(basin, period, unit, data, output, template=False, decimal = 1
     p1['RFS_greenhouses'] = float(df1.loc[(df1.TYPE == 'Greenhouses') & (df1.SUBTYPE == 'RETURN_FLOW_SURFACEWATER')].VALUE)
     p1['RFS_othermanmade'] = float(df1.loc[(df1.TYPE == 'Other') & (df1.SUBTYPE == 'RETURN_FLOW_SURFACEWATER')].VALUE)
     
-    for key, value in list(p1.items()):
+    for key, value in p1.items():
         p1[key] = np.round(value, decimals = decimal)
     
     p1['VRtotal_natural'] = pd.np.nansum(df1.loc[(df1.SUBTYPE == 'VERTICAL_RECHARGE')].VALUE)
@@ -1805,7 +1804,7 @@ def create_sheet6(basin, period, unit, data, output, template=False, decimal = 1
 
     
 
-    for key, value in list(p1.items()):
+    for key, value in p1.items():
         p1[key] = np.round(value, decimals = decimal)
         
     if not template:
@@ -1829,17 +1828,20 @@ def create_sheet6(basin, period, unit, data, output, template=False, decimal = 1
     else:
         xml_txt_box.getchildren()[0].text = 'Sheet 6: Groundwater ({0})'.format(unit)
         
-    for key in list(p1.keys()):
+    for key in p1.keys():
         xml_txt_box = tree1.findall(".//*[@id='{0}']".format(key))[0]
         if not pd.isnull(p1[key]):
             xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimal, p1[key])
         else:
             xml_txt_box.getchildren()[0].text = '-'
     
-    # Export svg to png    
-    tempout_path = output.replace('.pdf', '_temporary.svg')
-    tree1.write(tempout_path)    
-    cairosvg.svg2pdf(url=tempout_path, write_to=output)    
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+
+    tempout_path = output.replace('.png', '_temporary.svg')
+    tree1.write(tempout_path)
+    
+    subprocess.call([get_path('inkscape'),tempout_path,'--export-png='+output, '-d 300'])
+    
     os.remove(tempout_path)
 
 def plot_storages(ds_ts, bf_ts, cr_ts, vgw_ts, vr_ts, rfg_ts, rfs_ts, dates, output_folder, catchment_name, extension = 'png'):
@@ -1867,7 +1869,7 @@ def plot_storages(ds_ts, bf_ts, cr_ts, vgw_ts, vr_ts, rfg_ts, rfs_ts, dates, out
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * 0.1,box.width, box.height * 0.9])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.21),fancybox=True, shadow=True, ncol=5)
-    [i.set_zorder(10) for i in ax.spines.values()]
+    [i.set_zorder(10) for i in ax.spines.itervalues()]
     plt.savefig(os.path.join(output_folder, 'sheet6_water_storage_{1}.{0}'.format(extension, dates[0].year)))
     
     fig = plt.figure(figsize = (10,10))
@@ -1892,7 +1894,7 @@ def plot_storages(ds_ts, bf_ts, cr_ts, vgw_ts, vr_ts, rfg_ts, rfs_ts, dates, out
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * 0.1,box.width, box.height * 0.9])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.21),fancybox=True, shadow=True, ncol=5)
-    [i.set_zorder(10) for i in ax.spines.values()]
+    [i.set_zorder(10) for i in ax.spines.itervalues()]
     plt.savefig(os.path.join(output_folder, 'sheet6_water_balance_{1}.{0}'.format(extension, dates[0].year)))
 
 
