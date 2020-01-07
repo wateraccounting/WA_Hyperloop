@@ -298,7 +298,7 @@ def splitET_ITE(lu_fh, et_fhs, et_dates, lai_fhs, lai_dates, p_fhs, p_dates, n_f
         footprint = np.ones((10,10), dtype = np.bool)
         
         for month in np.unique(ndm_months):
-            std, mean = becgis.calc_mean_std(ndm_fhs[ndm_months == month], None, None)
+            std, mean = becgis.calc_mean_std(ndm_fhs[ndm_months == month])
             ndm_temporal_mean = mean #+ 2 * std
             ndm_temporal_mean [np.isnan(ndm_temporal_mean )] = 0.
             ndm_spatial_max = ndm_temporal_mean * 0.0

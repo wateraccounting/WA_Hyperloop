@@ -75,7 +75,7 @@ def create_csv_yearly(input_folder, output_folder, sheetnb, start_month,
     for date in water_dates:
         if date.year in years[years_counts == 12]:
             
-            reader = csv.reader(open(fhs[water_dates == date], 'r'), delimiter=';')
+            reader = csv.reader(open(fhs[water_dates == date][0], 'r'), delimiter=';')
             data.append(np.array(list(reader))[header_rows:,header_columns:minus_header_colums].astype(np.float))
             
             if len(data) == 12:
@@ -84,8 +84,8 @@ def create_csv_yearly(input_folder, output_folder, sheetnb, start_month,
                 data = list()
                 template[header_rows:,header_columns:minus_header_colums] = yearly_data.astype(np.str)
                 fh = os.path.join(output_folder, 'sheet_{1}_{0}.csv'.format(date.year,sheetnb))
-                csv_file = open(fh, 'wb')
-                writer = csv.writer(csv_file, delimiter=';')
+                csv_file = open(fh, 'w')
+                writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
                 for row_index in range(shape[0]):
                     writer.writerow(template[row_index,:])
                 output_fhs = np.append(output_fhs, fh)

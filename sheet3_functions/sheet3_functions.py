@@ -138,11 +138,11 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
     first_row_a = ["USE","CLASS","SUBCLASS","TYPE","SUBTYPE","WATER_CONSUMPTION"]
     
     csv_file_b = open(output_csv_fh_b, 'w')
-    writer_b = csv.writer(csv_file_b, delimiter=';')
+    writer_b = csv.writer(csv_file_b, delimiter=';', lineterminator = '\n')
     writer_b.writerow(first_row_b)
     
     csv_file_a = open(output_csv_fh_a, 'w')
-    writer_a = csv.writer(csv_file_a, delimiter=';')
+    writer_a = csv.writer(csv_file_a, delimiter=';', lineterminator = '\n')
     writer_a.writerow(first_row_a)
     
     for TYPE in list(wp_y_irrigated_dictionary.keys()):
@@ -236,7 +236,7 @@ def calc_Y_WP_year(csv_fh, output_dir, croptype):
     
     csv_filename = os.path.join(output_dir, 'Yearly_Yields_WPs_{0}.csv'.format(croptype))
     csv_file = open(csv_filename, 'w')
-    writer = csv.writer(csv_file, delimiter=';')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     writer.writerow(["Startdate", "Enddate", "Yield [kg/ha]", "Yield_pr [kg/ha]", "Yield_irr [kg/ha]", "WP [kg/m3]", "WP_blue [kg/m3]", "WP_green [kg/m3]", "WC [km3]", "WC_blue [km3]", "WC_green [km3]"])
     
     for year in years:
@@ -423,7 +423,7 @@ def calc_Y_WP_seasons(start_dates, end_dates, lu_fh, lu_class, croptype, etgreen
     
     csv_filename = os.path.join(output_dir, 'Yields_WPs_{0}.csv'.format(croptype))
     csv_file = open(csv_filename, 'w')
-    writer = csv.writer(csv_file, delimiter=';')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n' )
     
     writer.writerow(["Startdate", "Enddate", "Yield [kg/ha]", "Yield_pr [kg/ha]", "Yield_irr [kg/ha]", "WP [kg/m3]", "WP_blue [kg/m3]", "WP_green [kg/m3]", "WC [km3]", "WC_blue [km3]", "WC_green [km3]"])
     for startdate, enddate in zip(start_dates, end_dates):
@@ -652,8 +652,8 @@ def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filety
     plt.clf()
     plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
     ax = fig.add_subplot(111)
-    ax.bar(start_dates, Yirr, ordinal_enddates-ordinal_startdates, color = '#6bb8cc', label = 'Yield from irrigation', linewidth = 2, edgecolor = 'w')
-    ax.bar(start_dates, Ypr, ordinal_enddates-ordinal_startdates, bottom = Yirr, color = '#a3db76', label = 'Yield from precipitation', linewidth = 2, edgecolor = 'w')
+    ax.bar(start_dates, Yirr, ordinal_enddates-ordinal_startdates, color = '#6bb8cc', label = 'Yield from irrigation', linewidth = 2, edgecolor = 'w', align='edge')
+    ax.bar(start_dates, Ypr, ordinal_enddates-ordinal_startdates, bottom = Yirr, color = '#a3db76', label = 'Yield from precipitation', linewidth = 2, edgecolor = 'w', align='edge')
     ax.set_title('Seasonal Yield, {0} in {1}'.format(croptype, catchment_name))
     ax.set_xlabel('Time')
     ax.set_ylabel('Yield [kg/ha]')
@@ -675,7 +675,7 @@ def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filety
     ax.legend(handles=[red_patch,blue_line, green_line],loc = 'upper left',fancybox=True, shadow=True)
     ax.bar(ordinal_meandates, WPblue, color = 'w', linewidth = 2, edgecolor = 'w', xerr = (ordinal_enddates-ordinal_startdates)/2.2, ecolor = '#6bb8cc', capsize = 0, error_kw = {'lw': 3})
     ax.bar(ordinal_meandates, WPgreen, color = 'w', linewidth = 2, edgecolor = 'w', xerr = (ordinal_enddates-ordinal_startdates)/2.2, ecolor = '#a3db76', capsize = 0, error_kw = {'lw': 3})
-    ax.bar(start_dates, WP, ordinal_enddates-ordinal_startdates, color = '#d98d8e', label = 'WP', linewidth = 2, edgecolor = 'w')
+    ax.bar(start_dates, WP, ordinal_enddates-ordinal_startdates, color = '#d98d8e', label = 'WP', linewidth=2, edgecolor='w', align='edge')
     ax.set_title('Seasonal Water Productivity, {0} in {1}'.format(croptype, catchment_name))
     ax.set_ylabel('Water Productivity [kg/m3]')
     ax.set_xlabel('Time')

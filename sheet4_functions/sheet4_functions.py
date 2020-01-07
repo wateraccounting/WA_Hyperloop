@@ -1634,7 +1634,7 @@ def create_sheet6_csv(entries, entries_2, lu_fh, lucs, date, output_folder, conv
     first_row = ['TYPE', 'SUBTYPE', 'VALUE']
     
     csv_file = open(output_csv_fh, 'w')
-    writer = csv.writer(csv_file, delimiter=';')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     writer.writerow(first_row)
     
     for SUBTYPE in list(results_sh6.keys()):
@@ -1840,7 +1840,7 @@ def create_sheet6(basin, period, unit, data, output, template=False, decimal = 1
     tempout_path = output.replace('.pdf', '_temporary.svg')
     tree1.write(tempout_path)    
     cairosvg.svg2pdf(url=tempout_path, write_to=output)    
-    os.remove(tempout_path)
+#    os.remove(tempout_path)
 
 def plot_storages(ds_ts, bf_ts, cr_ts, vgw_ts, vr_ts, rfg_ts, rfs_ts, dates, output_folder, catchment_name, extension = 'png'):
     

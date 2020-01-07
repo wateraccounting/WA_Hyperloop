@@ -30,6 +30,9 @@ import WA_Hyperloop.becgis as becgis
 from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.get_dictionaries as gd
 from WA_Hyperloop.paths import get_path
+import gdal
+gdal.UseExceptions() 
+
 
 def create_sheet5(complete_data, metadata, output_dir, global_data):
     output_folder = os.path.join(output_dir, metadata['name'], 'sheet5')
@@ -277,7 +280,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
         ins = [j for j in list(dico_in.keys()) if 0 in dico_in[j]]
         results[ystr][mstr]['inflows']['basin'] = np.nansum([added_inflow[k][dt] for k in ins]) #np.nansum([added_inflow[k][dt]/1000000000. for k in ins])
 
-        output_fh = os.path.join(output_folder,"\\sheet5_monthly\\sheet5_"+datestr1+".csv")
+        output_fh = os.path.join(output_folder,"sheet5_monthly","sheet5_"+datestr1+".csv")
         create_csv(results[ystr][mstr], output_fh)
         output = output_fh.replace('csv', 'pdf')
         create_sheet5_svg(metadata['name'], sb_codes, datestr1, 'km3',
@@ -495,9 +498,9 @@ def upstream_of_lu_class(dem_fh, lu_fh, output_folder, clss=63):
             becgis.create_geotiff(upstream_fh, upstream.astype(np.int8), driver, NDV, xsize, ysize, GeoT, Projection)
     else:
         dummy = becgis.open_as_array(lu_fh, nan_values=True) * 0.
-        dummy = dummy.astype(np.bool)
+        dummy = dummy.astype(np.int16)
         driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_fh)
-        becgis.create_geotiff(upstream_fh, dummy.astype(np.int8), driver, NDV, xsize, ysize, GeoT, Projection)
+        becgis.create_geotiff(upstream_fh, dummy, driver, NDV, xsize, ysize, GeoT, Projection)
 
     print("Finished calculating up and downstream areas.")
     return upstream_fh
@@ -622,7 +625,7 @@ def linear_fractions(lu_fh, upstream_fh, proxy_fh, output_fh, xs, unit='km',
         becgis.set_classes_to_value(output_fh, lu_fh, classes, value=0)
 
 
-def dryness_fractions(p_fh, std_fh, mean_fh, fractions_dryness_fh, base=-0.5, top=0.0):
+def dryness_fractions(p_fh, std, mean, fractions_dryness_fh, base=-0.5, top=0.0):
     """
     Calculate fractions per pixel based on the distribution P compared to its long-term
     mean and std.
@@ -645,8 +648,8 @@ def dryness_fractions(p_fh, std_fh, mean_fh, fractions_dryness_fh, base=-0.5, to
         is larger than (mean + top *std). Default is 0.0.
     """
     P = becgis.open_as_array(p_fh, nan_values=True)
-    STD = becgis.open_as_array(std_fh, nan_values=True)
-    MEAN = becgis.open_as_array(mean_fh, nan_values=True)
+    STD = std
+    MEAN = mean
 
     BASE = MEAN + base * STD
     TOP = MEAN + top * STD
@@ -674,22 +677,28 @@ def calc_fractions(p_data, output_dir, dem_fh, lu_fh, fraction_altitude_xs):
 
     fractions_fhs = np.array([])
 
-    for date in p_dates:
+    for pdate in p_dates:
         # Create some filehandles to store results.
-        std_fh = os.path.join(output_dir, 'std_means', 'std_{0}.tif'.format(str(date.month).zfill(2)))
-        mean_fh = os.path.join(output_dir, 'std_means', 'mean_{0}.tif'.format(str(date.month).zfill(2)))
-        fractions_dryness_fh = os.path.join(output_dir, 'fractions_dryness', 'fractions_dryness_{0}_{1}.tif'.format(date.year, str(date.month).zfill(2)))
-        fractions_fh = os.path.join(output_dir, 'fractions', 'fractions_{0}_{1}.tif'.format(date.year, str(date.month).zfill(2)))
+#        std_fh = os.path.join(output_dir, 'std_means', 'std_{0}.tif'.format(str(pdate.month).zfill(2)))
+#        mean_fh = os.path.join(output_dir, 'std_means', 'mean_{0}.tif'.format(str(pdate.month).zfill(2)))
+        fractions_dryness_fh = os.path.join(output_dir, 'fractions_dryness', 'fractions_dryness_{0}_{1}.tif'.format(pdate.year, str(pdate.month).zfill(2)))
+        fractions_fh = os.path.join(output_dir, 'fractions', 'fractions_{0}_{1}.tif'.format(pdate.year, str(pdate.month).zfill(2)))
 
         # If not done yet, calculate the mean and std of the precipitation for the current month of the year.
-        if not np.any([os.path.isfile(std_fh), os.path.isfile(mean_fh)]):
-            becgis.calc_mean_std(p_fhs[p_months == date.month], std_fh, mean_fh)
+#        if not np.any([os.path.isfile(std_fh), os.path.isfile(mean_fh)]):
+        std, mean = becgis.calc_mean_std(p_fhs[p_months == pdate.month])#, std_fh, mean_fh)
 
         # Determine fractions regarding dryness to determine non-utilizable outflow.
-        dryness_fractions(p_fhs[p_dates == date][0], std_fh, mean_fh,
+        dryness_fractions(p_fhs[p_dates == pdate][0], std, mean,
                           fractions_dryness_fh, base=-0.5, top=0.0)
         # Multiply the altitude and dryness fractions.
-        becgis.Multiply(fractions_altitude_fh, fractions_dryness_fh, fractions_fh)
+        FH1 = becgis.open_as_array(fractions_altitude_fh, nan_values = True)
+        FH2 = becgis.open_as_array(fractions_dryness_fh, nan_values = True)
+        FH3 = FH1 * FH2
+        if not os.path.exists(os.path.split(fractions_fh)[0]):
+            os.makedirs(os.path.split(fractions_fh)[0])
+        driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(fractions_altitude_fh)
+        becgis.create_geotiff(fractions_fh, FH3, driver, NDV, xsize, ysize, GeoT, Projection)
 
         fractions_fhs = np.append(fractions_fhs, fractions_fh)
     return (fractions_fhs, p_dates)
@@ -919,8 +928,8 @@ def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs,
     for i in range(len(sb_fhs)):
         sb_fh = sb_fhs[i]
         sb_code = sb_codes[i]
-        gray_water_fraction[sb_code] = becgis.calc_basinmean(wpl_fh, sb_fh)
-        ewr_percentage[sb_code] = becgis.calc_basinmean(ewr_fh, sb_fh)
+        gray_water_fraction[sb_code] = calc_basinmean(wpl_fh, sb_fh)
+        ewr_percentage[sb_code] = calc_basinmean(ewr_fh, sb_fh)
     t = 0
     for d in date_list:
         datestr1 = "%04d_%02d" %(d.year, d.month)
@@ -957,7 +966,7 @@ def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs,
     return results
 
 
-def create_csv(results, output_fh):
+def create_csv(dresults, output_fh):
     """
     Create the csv-file for sheet 5.
 
@@ -972,27 +981,53 @@ def create_csv(results, output_fh):
     if not os.path.exists(os.path.split(output_fh)[0]):
         os.makedirs(os.path.split(output_fh)[0])
     csv_file = open(output_fh, 'w')
-    writer = csv.writer(csv_file, delimiter=';')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     writer.writerow(first_row)
     lu_classes = ['PROTECTED', 'UTILIZED', 'MODIFIED', 'MANAGED']
-    for sb in list(results['surf_runoff'].keys()):
-        writer.writerow([sb, 'Inflow', '{0}'.format(results['inflows'][sb]), 'km3'])
+    for sb in list(dresults['surf_runoff'].keys()):
+        writer.writerow([sb, 'Inflow', '{0}'.format(dresults['inflows'][sb]), 'km3'])
         for lu_class in lu_classes:
-            writer.writerow([sb, 'Fast Runoff: '+lu_class, '{0}'.format(results['surf_runoff'][sb][lu_class]), 'km3'])
-            writer.writerow([sb, 'Slow Runoff: ' +lu_class, '{0}'.format(results['base_runoff'][sb][lu_class]), 'km3'])
-        writer.writerow([sb, 'Total Runoff', '{0}'.format(results['total_runoff'][sb]), 'km3'])
-        writer.writerow([sb, 'SW withdr. manmade', '{0}'.format(results['withdrawls'][sb]['man']), 'km3'])
-        writer.writerow([sb, 'SW withdr. natural', '{0}'.format(results['withdrawls'][sb]['natural']), 'km3'])
-        writer.writerow([sb, 'SW withdr. total', '{0}'.format(results['withdrawls'][sb]['man']+results['withdrawls'][sb]['natural']), 'km3'])
-        writer.writerow([sb, 'Return Flow SW', '{0}'.format(results['return_sw_sw'][sb]), 'km3'])
-        writer.writerow([sb, 'Return Flow GW', '{0}'.format(results['return_gw_sw'][sb]), 'km3'])
-        writer.writerow([sb, 'Total Return Flow', '{0}'.format(results['return_sw_sw'][sb]+results['return_gw_sw'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Total', '{0}'.format(results['total_outflow'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Committed', '{0}'.format(results['committed_outflow'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Non Recoverable', '{0}'.format(results['non_recoverable_outflow'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Non Utilizable', '{0}'.format(results['non_utilizable_outflow'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Utilizable', '{0}'.format(results['utilizable_outflow'][sb]), 'km3'])
-        writer.writerow([sb,'Interbasin Transfer','{0}'.format(results['interbasin_transfers'][sb]),'km3'])
-        writer.writerow([sb, 'SW storage change', '{0}'.format(results['deltaS'][sb]), 'km3'])
+            writer.writerow([sb, 'Fast Runoff: '+lu_class, '{0}'.format(dresults['surf_runoff'][sb][lu_class]), 'km3'])
+            writer.writerow([sb, 'Slow Runoff: ' +lu_class, '{0}'.format(dresults['base_runoff'][sb][lu_class]), 'km3'])
+        writer.writerow([sb, 'Total Runoff', '{0}'.format(dresults['total_runoff'][sb]), 'km3'])
+        writer.writerow([sb, 'SW withdr. manmade', '{0}'.format(dresults['withdrawls'][sb]['man']), 'km3'])
+        writer.writerow([sb, 'SW withdr. natural', '{0}'.format(dresults['withdrawls'][sb]['natural']), 'km3'])
+        writer.writerow([sb, 'SW withdr. total', '{0}'.format(dresults['withdrawls'][sb]['man']+dresults['withdrawls'][sb]['natural']), 'km3'])
+        writer.writerow([sb, 'Return Flow SW', '{0}'.format(dresults['return_sw_sw'][sb]), 'km3'])
+        writer.writerow([sb, 'Return Flow GW', '{0}'.format(dresults['return_gw_sw'][sb]), 'km3'])
+        writer.writerow([sb, 'Total Return Flow', '{0}'.format(dresults['return_sw_sw'][sb]+dresults['return_gw_sw'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Total', '{0}'.format(dresults['total_outflow'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Committed', '{0}'.format(dresults['committed_outflow'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Non Recoverable', '{0}'.format(dresults['non_recoverable_outflow'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Non Utilizable', '{0}'.format(dresults['non_utilizable_outflow'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Utilizable', '{0}'.format(dresults['utilizable_outflow'][sb]), 'km3'])
+        writer.writerow([sb,'Interbasin Transfer','{0}'.format(dresults['interbasin_transfers'][sb]),'km3'])
+        writer.writerow([sb, 'SW storage change', '{0}'.format(dresults['deltaS'][sb]), 'km3'])
     csv_file.close()
     return
+
+def calc_basinmean(perc_fh, lu_fh):
+    """
+    Calculate the mean of a map after masking out the areas outside an basin defined by
+    its landusemap.
+    
+    Parameters
+    ----------
+    perc_fh : str
+        Filehandle pointing to the map for which the mean needs to be determined.
+    lu_fh : str
+        Filehandle pointing to landusemap.
+    
+    Returns
+    -------
+    percentage : float
+        The mean of the map within the border of the lu_fh.
+    """
+    output_folder = tf.mkdtemp()
+    perc_fh = becgis.match_proj_res_ndv(lu_fh, np.array([perc_fh]), output_folder)
+    EWR = becgis.open_as_array(perc_fh[0], nan_values = True)
+    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    EWR[np.isnan(LULC)] = np.nan
+    percentage = np.nanmean(EWR)
+    shutil.rmtree(output_folder)
+    return percentage

@@ -16,6 +16,9 @@ from dateutil.relativedelta import relativedelta
 import matplotlib.pyplot as plt
 import numpy as np
 
+gdal.UseExceptions() 
+
+
 def mm_to_km3(lu_fih, var_fihs):
     """
     Convert the unit of a series of maps from mm to km3.
@@ -616,7 +619,8 @@ def open_as_array(fih, bandnumber=1, nan_values=True):
         ndv = subdataset.GetNoDataValue()
     array = subdataset.ReadAsArray()
     if nan_values:
-        array[array == ndv] = np.nan
+        if len(array[array == ndv]) >0:
+            array[array == ndv] = np.nan
     return array
 
 
@@ -936,3 +940,4 @@ def assert_same_keys(list_of_dictionaries):
     for dictionary in list_of_dictionaries[1:]:
         assert len(dictionary.keys()) == length1, "The length of the provided dictionaries do not match"
         assert np.all(np.sort(dictionary.keys()) == np.sort(keys1)), "The keys in the provided dictionaries do not match"
+
