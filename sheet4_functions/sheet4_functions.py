@@ -148,7 +148,8 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
     equiped_sw_irrigation_tif = global_data["equiped_sw_irrigation"]
     wpl_tif = global_data["wpl_tif"]
     
-
+    AREAS = becgis.map_pixel_area_km(metadata['lu'])
+    
     non_recov_fraction_tif = non_recoverable_fractions(metadata['lu'], wpl_tif, lucs, output_dir2)
 
     supply_swa = return_flow_sw_sw = return_flow_sw_gw = return_flow_gw_sw = return_flow_gw_gw = np.array([])
@@ -250,7 +251,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         demand_tif = calc_demand(complete_data['lai'][0][complete_data['lai'][1] == date][0], complete_data['etref'][0][complete_data['etref'][1] == date][0], complete_data['p'][0][complete_data['p'][1] == date][0], metadata['lu'], date, os.path.join(output_dir, 'data'))
         if "population_tif" in list(global_data.keys()):
             population_tif = global_data["population_tif"]
-            residential_demand = include_residential_supply(population_tif, metadata['lu'], total_supply_tif, date, lucs, 110, wcpc_minimal = 100)
+            residential_demand = include_residential_supply(population_tif, metadata['lu'], AREAS, total_supply_tif, date, lucs, 110, wcpc_minimal = 100)
             becgis.set_classes_to_value(demand_tif, metadata['lu'], lucs['Residential'], value = residential_demand)
 
         ###
@@ -267,7 +268,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
                        'NON_RECOVERABLE_GROUNDWATER': non_recov_gw_tif,
                        'DEMAND': demand_tif}
         
-        sheet4_csv =create_sheet4_csv(entries_sh4, metadata['lu'], lucs, date, os.path.join(output_dir2, 'sheet4_monthly'), convert_unit = 1)
+        sheet4_csv =create_sheet4_csv(entries_sh4, metadata['lu'], AREAS, lucs, date, os.path.join(output_dir2, 'sheet4_monthly'), convert_unit = 1)
         
         create_sheet4(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), ['km3/month', 'km3/month'], [sheet4_csv, sheet4_csv], 
                           [sheet4_csv.replace('.csv','_a.pdf'), sheet4_csv.replace('.csv','_b.pdf')], template = [get_path('sheet4_1_svg'), get_path('sheet4_2_svg')], smart_unit = True)
@@ -280,8 +281,8 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         print("sheet 4 finished for {0} (going to {1})".format(date, common_dates[-1]))
         
         recharge_tif = complete_data["recharge"][0][complete_data["recharge"][1] == date][0]
-        baseflow = accumulate_per_classes(metadata['lu'], complete_data["bf"][0][complete_data["bf"][1] == date][0], list(range(1,81)), scale = 1e-6)
-        capillaryrise = 0.01 * accumulate_per_classes(metadata['lu'], supply_gw_tif, list(range(1,81)), scale = 1e-6)
+        baseflow = accumulate_per_classes(metadata['lu'], AREAS, complete_data["bf"][0][complete_data["bf"][1] == date][0], list(range(1,81)), scale = 1e-6)
+        capillaryrise = 0.01 * accumulate_per_classes(metadata['lu'], AREAS, supply_gw_tif, list(range(1,81)), scale = 1e-6)
 
         entries_sh6 = {'VERTICAL_RECHARGE': recharge_tif,
                        'VERTICAL_GROUNDWATER_WITHDRAWALS': supply_gw_tif,
@@ -295,7 +296,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
                          'GWInflow': 'nan',
                          'GWOutflow': 'nan'}
     
-        sheet6_csv = create_sheet6_csv(entries_sh6, entries_2_sh6, metadata['lu'], lucs, date, os.path.join(output_dir3,'sheet6_monthly'), convert_unit = 1)
+        sheet6_csv = create_sheet6_csv(entries_sh6, entries_2_sh6, metadata['lu'], AREAS, lucs, date, os.path.join(output_dir3,'sheet6_monthly'), convert_unit = 1)
         
         create_sheet6(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), 'km3/month', sheet6_csv, sheet6_csv.replace('.csv', '.pdf'), template = get_path('sheet6_svg'), smart_unit = True)
         
@@ -485,7 +486,7 @@ def calc_demand(lai_tif, etref_tif, p_tif, lu_tif, date, output_folder):
     return fh  
     
 
-def include_residential_supply(population_fh, lu_fh, total_supply_fh, date, sheet4_lucs, wcpc, wcpc_minimal = None):
+def include_residential_supply(population_fh, lu_fh, AREAS, total_supply_fh, date, sheet4_lucs, wcpc, wcpc_minimal = None):
     """
     Changes the pixel values in a provided map based on the population and the
     per capita daily water consumption.
@@ -524,17 +525,15 @@ def include_residential_supply(population_fh, lu_fh, total_supply_fh, date, shee
     
     classes = sheet4_lucs['Residential']
     mask = np.logical_or.reduce([LULC == value for value in classes])
-    
-    # Get area of each pixel.
-    AREA = becgis.map_pixel_area_km(lu_fh)
+
     
     # Convert [pop/ha] to [pop/pixel]
-    POP *= AREA * 100
+    POP *= AREAS * 100
     
     monthlength = calendar.monthrange(date.year, date.month)[1]
     
     # Calculate WC per pixel in [mm/month]
-    SUPPLY_new = wcpc * POP * monthlength * 10**-6 / AREA
+    SUPPLY_new = wcpc * POP * monthlength * 10**-6 / AREAS
     
     SUPPLY_new[np.isnan(SUPPLY_new)] = np.nanmean(SUPPLY_new[mask])
     
@@ -547,11 +546,11 @@ def include_residential_supply(population_fh, lu_fh, total_supply_fh, date, shee
     becgis.create_geotiff(total_supply_fh, SUPPLY, driver, NDV, xsize, ysize, GeoT, Projection)
     
     if wcpc_minimal is not None:
-        SUPPLY_demand = wcpc_minimal * POP * monthlength * 10**-6 / AREA
-        demand = accumulate_per_classes(lu_fh, SUPPLY_demand, classes, scale = 1e-6)
+        SUPPLY_demand = wcpc_minimal * POP * monthlength * 10**-6 / AREAS
+        demand = accumulate_per_classes(lu_fh, AREAS, SUPPLY_demand, classes, scale = 1e-6)
         return demand
     
-def accumulate_per_classes(lu_fh, fh, classes, scale = 1e-6):
+def accumulate_per_classes(lu_fh, AREAS, fh, classes, scale = 1e-6):
     """
     Accumulate values on a rastermap masked by a landusemap. Function can also
     convert the values to volumetric units.
@@ -587,11 +586,10 @@ def accumulate_per_classes(lu_fh, fh, classes, scale = 1e-6):
     if scale == None:
         accum = np.nanmean(data[mask])
     else:
-        areas = becgis.map_pixel_area_km(lu_fh)
-        accum = np.nansum(data[mask] * scale * areas[mask])
+        accum = np.nansum(data[mask] * scale * AREAS[mask])
     return accum
 
-def accumulate_per_categories(lu_fh, fh, dictionary, scale = 1e-6):
+def accumulate_per_categories(lu_fh, AREAS, fh, dictionary, scale = 1e-6):
     """
     Accumulate values on a rastermap for different categories defined in a
     dictionary.
@@ -627,10 +625,10 @@ def accumulate_per_categories(lu_fh, fh, dictionary, scale = 1e-6):
         classes = dictionary[category]
         if len(classes) == 0:
             classes = [-99]
-        accumulated[category] = accumulate_per_classes(lu_fh, fh, classes, scale = scale)
+        accumulated[category] = accumulate_per_classes(lu_fh, AREAS, fh, classes, scale = scale)
     return accumulated
 
-def plot_per_category(fhs, dates, lu_fh, dictionary, output_fh, scale = 1e-6, gradient_steepness = 2, quantity_unit = ['ET', 'mm/month']):
+def plot_per_category(fhs, dates, lu_fh, AREAS, dictionary, output_fh, scale = 1e-6, gradient_steepness = 2, quantity_unit = ['ET', 'mm/month']):
     """
     Plot the total data per landuse categories as defined in dictionary. Categories
     that provide less than 1% of the total stock/flux are omitted.
@@ -665,7 +663,7 @@ def plot_per_category(fhs, dates, lu_fh, dictionary, output_fh, scale = 1e-6, gr
         ets_accumulated[key] = np.array([])
         
     for et_fh in fhs:
-        et_accumulated = accumulate_per_categories(lu_fh, et_fh, dictionary, scale = scale)
+        et_accumulated = accumulate_per_categories(lu_fh, AREAS, et_fh, dictionary, scale = scale)
         for key in list(et_accumulated.keys()):
             ets_accumulated[key] = np.append(ets_accumulated[key], et_accumulated[key])
             
@@ -867,7 +865,7 @@ def insert_values(results, test, lu_category):
         results[key][lu_category] = test[key]
     return results
     
-def create_results_dict(entries, lu_fh, sheet4_lucs, aquaculture = None, power = None, industry = None):
+def create_results_dict(entries, lu_fh, AREAS, sheet4_lucs, aquaculture = None, power = None, industry = None):
     """
     Create a dictionary with values to be stored in a csv-file.
     
@@ -903,7 +901,7 @@ def create_results_dict(entries, lu_fh, sheet4_lucs, aquaculture = None, power =
                 null_dictionary[k2] = 0.0        
             results[key] = null_dictionary
         if np.any([type(entries[key]) is str, type(entries[key]) is np.string_, type(entries[key]) is np.str_]):
-            results[key] = accumulate_per_categories(lu_fh, entries[key], sheet4_lucs, scale = 1e-6)
+            results[key] = accumulate_per_categories(lu_fh, AREAS, entries[key], sheet4_lucs, scale = 1e-6)
         if type(entries[key]) is dict:
             results[key] = entries[key]
     
@@ -916,7 +914,7 @@ def create_results_dict(entries, lu_fh, sheet4_lucs, aquaculture = None, power =
         
     return results
 
-def create_sheet4_csv(entries, lu_fh, sheet4_lucs, date, output_folder, aquaculture = None, power = None, industry = None, convert_unit = 1):
+def create_sheet4_csv(entries, lu_fh, AREAS, sheet4_lucs, date, output_folder, aquaculture = None, power = None, industry = None, convert_unit = 1):
     """
     Create a csv-file used to generate sheet 4.
     
@@ -963,7 +961,7 @@ def create_sheet4_csv(entries, lu_fh, sheet4_lucs, date, output_folder, aquacult
                               'Forests','Shrubland','Managed water bodies','Other (Non-Manmade)','Aquaculture','Power and Energy','Forest Plantations',
                               'Irrigated crops','Other','Natural Water Bodies']
                               
-    results = create_results_dict(entries, lu_fh, sheet4_lucs, aquaculture = aquaculture, power = power, industry = industry)
+    results = create_results_dict(entries, lu_fh, AREAS, sheet4_lucs, aquaculture = aquaculture, power = power, industry = industry)
         
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -1586,7 +1584,7 @@ def calc_delta_flow(supply_fh, conventional_et_fh, output_folder, date, non_conv
     
     return delta_fh
 
-def create_sheet6_csv(entries, entries_2, lu_fh, lucs, date, output_folder, convert_unit = 1):
+def create_sheet6_csv(entries, entries_2, lu_fh, AREAS, lucs, date, output_folder, convert_unit = 1):
     """
     Create a csv-file with all necessary values for Sheet 6.
     
@@ -1620,7 +1618,7 @@ def create_sheet6_csv(entries, entries_2, lu_fh, lucs, date, output_folder, conv
                               'Forests','Shrubland','Managed water bodies','Other (Non-Manmade)','Aquaculture','Forest Plantations',
                               'Irrigated crops','Other','Natural Water Bodies', 'Glaciers']
                 
-    results_sh6 = create_results_dict(entries, lu_fh, lucs)      
+    results_sh6 = create_results_dict(entries,  lu_fh, AREAS,lucs)      
     
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
