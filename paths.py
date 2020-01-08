@@ -9,7 +9,7 @@ import os
 
 def get_path(name):
     install_path = os.path.dirname(WA_Hyperloop.__file__)
-    paths = {#'inkscape':    r"C:\Program Files\Inkscape\inkscape.exe",
+    paths = {
              'sheet1_svg':  os.path.join(install_path, "svg\sheet_1.svg"),
              'sheet2_svg':  os.path.join(install_path, "svg\sheet_2.svg"),
              'sheet3_1_svg': os.path.join(install_path, "svg\sheet_3_part1.svg"),
@@ -19,8 +19,7 @@ def get_path(name):
              'sheet6_svg':    os.path.join(install_path, "svg\sheet_6.svg"),
              'sheet5_svg':    os.path.join(install_path, "svg\sheet_5.svg"),
              'sheet7m_svg':  os.path.join(install_path, "svg\sheet7_month.svg"),
-             'sheet7y_svg':  os.path.join(install_path, "svg\sheet7_yearly.svg"),
-#             'gdalwarp':      r"C:\Program Files\QGIS 2.18\bin\gdalwarp.exe"
+             'sheet7y_svg':  os.path.join(install_path, "svg\sheet7_yearly.svg")
              }
     
     return paths[name]
