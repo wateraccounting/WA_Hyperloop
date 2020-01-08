@@ -277,12 +277,12 @@ def correct_var(metadata, complete_data, output_dir, formula,
             os.makedirs(folder)
             
         bla = os.path.split(fn)[1].split('_')[-1]
-        filen = 'supply_sw_' + bla[0:4] + bla[4:6] + '.tif'
+        filen = 'supply_sw_' + bla[0:6] + '.tif'
         fn = os.path.join(folder, filen)
             
         becgis.create_geotiff(fn, data, *geo_info)
         
-    meta = becgis.sort_files(folder, [-11,-7], month_position = [-6,-4])[0:2]
+    meta = becgis.sort_files(folder, [-10,-6], month_position = [-6,-4])[0:2]
     return a, meta
 
 def calc_delta_months(x0, date):
