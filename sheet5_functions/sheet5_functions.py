@@ -679,14 +679,11 @@ def calc_fractions(p_data, output_dir, dem_fh, lu_fh, fraction_altitude_xs):
 
     for pdate in p_dates:
         # Create some filehandles to store results.
-#        std_fh = os.path.join(output_dir, 'std_means', 'std_{0}.tif'.format(str(pdate.month).zfill(2)))
-#        mean_fh = os.path.join(output_dir, 'std_means', 'mean_{0}.tif'.format(str(pdate.month).zfill(2)))
         fractions_dryness_fh = os.path.join(output_dir, 'fractions_dryness', 'fractions_dryness_{0}_{1}.tif'.format(pdate.year, str(pdate.month).zfill(2)))
         fractions_fh = os.path.join(output_dir, 'fractions', 'fractions_{0}_{1}.tif'.format(pdate.year, str(pdate.month).zfill(2)))
 
         # If not done yet, calculate the mean and std of the precipitation for the current month of the year.
-#        if not np.any([os.path.isfile(std_fh), os.path.isfile(mean_fh)]):
-        std, mean = becgis.calc_mean_std(p_fhs[p_months == pdate.month])#, std_fh, mean_fh)
+        std, mean = becgis.calc_mean_std(p_fhs[p_months == pdate.month])
 
         # Determine fractions regarding dryness to determine non-utilizable outflow.
         dryness_fractions(p_fhs[p_dates == pdate][0], std, mean,

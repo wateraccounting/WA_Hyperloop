@@ -145,7 +145,7 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
 
         output_fh = output_folder +"\\sheet7_monthly\\sheet7_"+datestr1+".csv"
         create_csv(results[ystr][mstr], output_fh)
-        output = output_folder + '\\sheet7_monthly\\sheet7_'+datestr1+'.png'
+        output = output_folder + '\\sheet7_monthly\\sheet7_'+datestr1+'.pdf'
         create_sheet7_svg(metadata['name'], datestr1, output_fh, output, 
                           template=template_m)
 
@@ -158,7 +158,7 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
     for csv_fh in fhs:
         year = csv_fh[-8:-4] 
         create_sheet7_svg(metadata['name'], year, 
-                          csv_fh, csv_fh.replace('.csv','.png'), template=template_y)
+                          csv_fh, csv_fh.replace('.csv','.pdf'), template=template_y)
 
 
 ## PROVISIONING SERVICES
@@ -472,8 +472,8 @@ def create_csv(results, output_fh):
     if not os.path.exists(os.path.split(output_fh)[0]):
         os.makedirs(os.path.split(output_fh)[0])
 
-    csv_file = open(output_fh, 'wb')
-    writer = csv.writer(csv_file, delimiter=';')
+    csv_file = open(output_fh, 'w')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     
     writer.writerow(first_row)
     lu_classes = ['PROTECTED', 'UTILIZED', 'MODIFIED', 'MANAGED']

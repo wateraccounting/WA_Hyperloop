@@ -12,9 +12,11 @@ import calendar
 import csv
 import datetime
 import glob
-import subprocess
+import cairosvg
 import numpy as np
 import pandas as pd
+import tempfile as tf
+import shutil
 import matplotlib.pyplot as plt
 from scipy import interpolate
 import xml.etree.ElementTree as ET
@@ -33,7 +35,7 @@ def sum_ts(flow_csvs):
     for cv in flow_csvs:
         
         coordinates, flow_ts, station_name, unit = pwv.create_dict_entry(cv)
-        flow_dates, flow_values = becgis.Unzip(flow_ts)
+        flow_dates, flow_values = list(zip(*flow_ts))
         flow_dates = becgis.convert_datetime_date(flow_dates)
         if unit == 'm3/s':
             flow_values = np.array([flow_values[flow_dates == date] * 60 * 60 * 24 * calendar.monthrange(date.year, date.month)[1] / 1000**3 for date in flow_dates])[:,0]
@@ -44,7 +46,7 @@ def sum_ts(flow_csvs):
     
     data = np.zeros(np.shape(common_dates))
     for flow_values, flow_dates in zip(flows, dates):
-        add_data = np.array([flow_values[flow_dates == date][0] for date in common_dates])
+        add_data = np.array([np.array(flow_values)[flow_dates == date][0] for date in common_dates])
         data += add_data
 
     return data, common_dates
@@ -108,7 +110,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
         create_csv(results, output_fh)
     
         # Plot the actual sheet.
-        create_sheet1_png(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), 'km3/month', output_fh, output_fh.replace('.csv','.png'), template = get_path('sheet1_svg'), smart_unit = True)
+        create_sheet1_png(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), 'km3/month', output_fh, output_fh.replace('.csv','.pdf'), template = get_path('sheet1_svg'), smart_unit = True)
     
     # Create some graphs.
     plot_storages(all_results, common_dates, metadata['name'], output_folder)
@@ -123,7 +125,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     
     # Plot yearly sheets.
     for csv_fh in yearly_csv_fhs:
-        create_sheet1_png(metadata['name'], csv_fh[-8:-4], 'km3/year', csv_fh, csv_fh.replace('.csv','.png'), template = get_path('sheet1_svg'), smart_unit = True)
+        create_sheet1_png(metadata['name'], csv_fh[-8:-4], 'km3/year', csv_fh, csv_fh.replace('.csv','.pdf'), template = get_path('sheet1_svg'), smart_unit = True)
         
     return complete_data, all_results
 
@@ -463,17 +465,11 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     xml_txt_box = tree.findall('''.//*[@id='et_out']''')[0]
     xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, depleted_water)
 
-    # svg to string
-    ET.register_namespace("", "http://www.w3.org/2000/svg")
-
-    Path_Inkscape = get_path('inkscape')
-
-    # Export svg to png
-    tempout_path = output.replace('.png', '_temporary.svg')
-    tree.write(tempout_path)
-    subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output, '-d 300'])
-#    os.remove(tempout_path)
-
+#    # Export svg to pdf
+    tempout_path = output.replace('.pdf', '_temporary.svg')
+    tree.write(tempout_path)    
+    cairosvg.svg2pdf(url=tempout_path, write_to=output)    
+    os.remove(tempout_path)
     # Return
     return output
 
@@ -482,14 +478,14 @@ def create_sheet1_in_outflows(sheet5_csv_folder, metadata, output_dir):
     output_fh_in = os.path.join(output_dir,"sheet1_inflow_km3_"+metadata['name']+'.csv')
     output_fh_out = os.path.join(output_dir,"sheet1_outflow_km3_"+metadata['name']+'.csv')
        
-    csv_file_in = open(output_fh_in, 'wb')
-    csv_file_out = open(output_fh_out, 'wb')
+    csv_file_in = open(output_fh_in, 'w')
+    csv_file_out = open(output_fh_out, 'w')
 
-    writer_in = csv.writer(csv_file_in, delimiter=';')
+    writer_in = csv.writer(csv_file_in, delimiter=';', lineterminator = '\n')
     writer_in.writerow(['lat:',0,'lon:',0,'km3 (from Sheet5)'])
     writer_in.writerow(['datetime','year','month','day','data'])
     
-    writer_out = csv.writer(csv_file_out, delimiter=';')
+    writer_out = csv.writer(csv_file_out, delimiter=';', lineterminator = '\n')
     writer_out.writerow(['lat:',0,'lon:',0,'km3 (from Sheet5)'])
     writer_out.writerow(['datetime','year','month','day','data'])
 
@@ -781,8 +777,8 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     
     pixel_area = becgis.map_pixel_area_km(lu_fh)
 
-    gray_water_fraction = becgis.calc_basinmean(entries['WPL'], lu_fh)
-    ewr_percentage = becgis.calc_basinmean(entries['EWR'], lu_fh)
+    gray_water_fraction = calc_basinmean(entries['WPL'], lu_fh)
+    ewr_percentage = calc_basinmean(entries['EWR'], lu_fh)
     
     P[np.isnan(LULC)] = ETgreen[np.isnan(LULC)] = ETblue[np.isnan(LULC)] = np.nan
     P, ETgreen, ETblue = np.array([P, ETgreen, ETblue]) * 0.000001 * pixel_area
@@ -896,8 +892,8 @@ def create_csv(results, output_fh):
     if not os.path.exists(os.path.split(output_fh)[0]):
         os.makedirs(os.path.split(output_fh)[0])
     
-    csv_file = open(output_fh, 'wb')
-    writer = csv.writer(csv_file, delimiter=';')
+    csv_file = open(output_fh, 'w')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     writer.writerow(first_row)
 
     writer.writerow(['INFLOW', 'PRECIPITATION', 'Rainfall', '{0}'.format(results['p_advection'])])
@@ -960,3 +956,28 @@ def calc_non_utilizable(P, ET, fractions_fh):
     non_utilizable_runoff = np.nansum((P - ET) * fractions)
     return non_utilizable_runoff
 
+def calc_basinmean(perc_fh, lu_fh):
+    """
+    Calculate the mean of a map after masking out the areas outside an basin defined by
+    its landusemap.
+    
+    Parameters
+    ----------
+    perc_fh : str
+        Filehandle pointing to the map for which the mean needs to be determined.
+    lu_fh : str
+        Filehandle pointing to landusemap.
+    
+    Returns
+    -------
+    percentage : float
+        The mean of the map within the border of the lu_fh.
+    """
+    output_folder = tf.mkdtemp()
+    perc_fh = becgis.match_proj_res_ndv(lu_fh, np.array([perc_fh]), output_folder)
+    EWR = becgis.open_as_array(perc_fh[0], nan_values = True)
+    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    EWR[np.isnan(LULC)] = np.nan
+    percentage = np.nanmean(EWR)
+    shutil.rmtree(output_folder)
+    return percentage
