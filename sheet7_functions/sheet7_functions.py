@@ -27,6 +27,7 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
     template_m = get_path('sheet7m_svg')
     template_y = get_path('sheet7y_svg')
     lu_fh = metadata['lu']
+    AREA = becgis.map_pixel_area_km(lu_fh)
     output_folder = os.path.join(output_dir, metadata['name'], 'sheet7')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -83,13 +84,13 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
                                ab=(1.0, 1.0))
 
     # calculate feed production and return filehandles of saved tif files
-    feed_fhs_landscape, feed_fhs_incremental = livestock_feed(output_folder, lu_fh,
+    feed_fhs_landscape, feed_fhs_incremental = livestock_feed(output_folder, lu_fh, AREA,
                                                               ndm_fhs, feed_dict,
                                                               live_feed, cattle_fh,
                                                               fraction_fhs, date_list2)
 
     # calculate fuel production and return filehandles of saved tif files
-    fuel_fhs_landscape, fuel_fhs_incremental = fuel_wood(output_folder, lu_fh,
+    fuel_fhs_landscape, fuel_fhs_incremental = fuel_wood(output_folder, lu_fh, AREA,
                                                          ndm_fhs, fraction_fhs,
                                                          date_list2)
 
@@ -130,18 +131,18 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
         atm_recy_landscape_fh = atm_recy_landscape_fhs[np.where([datestr2 in atm_recy_landscape_fhs[i] for i in range(len(atm_recy_landscape_fhs))])[0][0]]
         atm_recy_incremental_fh = atm_recy_incremental_fhs[np.where([datestr2 in atm_recy_incremental_fhs[i] for i in range(len(atm_recy_incremental_fhs))])[0][0]]
 
-        results[ystr][mstr]['tot_runoff'] = lu_type_sum(ro_fh, lu_fh, sheet7_lulc_classes, convert='mm_to_km3')
+        results[ystr][mstr]['tot_runoff'] = lu_type_sum(ro_fh, lu_fh, AREA, sheet7_lulc_classes, convert='mm_to_km3')
       #  results['fish'] =
-        results[ystr][mstr]['feed_incremental'] = lu_type_sum(feed_fh_incremental, lu_fh, sheet7_lulc_classes)
-        results[ystr][mstr]['feed_landscape'] = lu_type_sum(feed_fh_landscape, lu_fh, sheet7_lulc_classes)
-        results[ystr][mstr]['fuel_incremental'] = lu_type_sum(fuel_fh_incremental, lu_fh, sheet7_lulc_classes)
-        results[ystr][mstr]['fuel_landscape'] = lu_type_sum(fuel_fh_landscape, lu_fh, sheet7_lulc_classes)
+        results[ystr][mstr]['feed_incremental'] = lu_type_sum(feed_fh_incremental, lu_fh, AREA, sheet7_lulc_classes)
+        results[ystr][mstr]['feed_landscape'] = lu_type_sum(feed_fh_landscape, lu_fh, AREA, sheet7_lulc_classes)
+        results[ystr][mstr]['fuel_incremental'] = lu_type_sum(fuel_fh_incremental, lu_fh, AREA, sheet7_lulc_classes)
+        results[ystr][mstr]['fuel_landscape'] = lu_type_sum(fuel_fh_landscape, lu_fh, AREA, sheet7_lulc_classes)
 
-        results[ystr][mstr]['baseflow'] = lu_type_sum(baseflow_fh, lu_fh, sheet7_lulc_classes, convert='mm_to_km3')
-        results[ystr][mstr]['gw_rech'] = lu_type_sum(gw_recharge_fh, lu_fh, sheet7_lulc_classes, convert='mm_to_km3')
-        results[ystr][mstr]['root_storage'] = lu_type_sum(root_storage_fh, lu_fh, sheet7_lulc_classes, convert='mm_to_km3')
-        results[ystr][mstr]['atm_recycl_landscape'] = lu_type_sum(atm_recy_landscape_fh, lu_fh, sheet7_lulc_classes, convert='mm_to_km3')
-        results[ystr][mstr]['atm_recycl_incremental'] = lu_type_sum(atm_recy_incremental_fh, lu_fh, sheet7_lulc_classes, convert='mm_to_km3')
+        results[ystr][mstr]['baseflow'] = lu_type_sum(baseflow_fh, lu_fh, AREA, sheet7_lulc_classes, convert='mm_to_km3')
+        results[ystr][mstr]['gw_rech'] = lu_type_sum(gw_recharge_fh, lu_fh, AREA, sheet7_lulc_classes, convert='mm_to_km3')
+        results[ystr][mstr]['root_storage'] = lu_type_sum(root_storage_fh, lu_fh, AREA, sheet7_lulc_classes, convert='mm_to_km3')
+        results[ystr][mstr]['atm_recycl_landscape'] = lu_type_sum(atm_recy_landscape_fh, lu_fh, AREA, sheet7_lulc_classes, convert='mm_to_km3')
+        results[ystr][mstr]['atm_recycl_incremental'] = lu_type_sum(atm_recy_incremental_fh, lu_fh, AREA, sheet7_lulc_classes, convert='mm_to_km3')
 
         output_fh = output_folder +"\\sheet7_monthly\\sheet7_"+datestr1+".csv"
         create_csv(results[ystr][mstr], output_fh)
@@ -162,7 +163,7 @@ def create_sheet7(complete_data, metadata, output_dir, global_data, data):
 
 
 ## PROVISIONING SERVICES
-def livestock_feed(output_folder, lu_fh, ndm_fhs, feed_dict, live_feed, cattle_fh, fraction_fhs, ndmdates):
+def livestock_feed(output_folder, lu_fh, AREA, ndm_fhs, feed_dict, live_feed, cattle_fh, fraction_fhs, ndmdates):
     """
     Calculate natural livestock feed production
 
@@ -186,7 +187,7 @@ def livestock_feed(output_folder, lu_fh, ndm_fhs, feed_dict, live_feed, cattle_f
     if not os.path.exists(out_folder):
         os.mkdir(out_folder)
 
-    area_ha = becgis.map_pixel_area_km(lu_fh) * 100
+    area_ha = AREA * 100
     LULC = RC.Open_tiff_array(lu_fh)
   #  cattle = RC.Open_tiff_array(cattle_fh)
     geo_out, proj, size_X, size_Y = RC.Open_array_info(lu_fh)
@@ -222,7 +223,7 @@ def livestock_feed(output_folder, lu_fh, ndm_fhs, feed_dict, live_feed, cattle_f
         feed_fhs_incremental.append(out_fh_i)
     return feed_fhs_landscape, feed_fhs_incremental
 
-def fuel_wood(output_folder, lu_fh, ndm_fhs, fraction_fhs, ndmdates):
+def fuel_wood(output_folder, lu_fh, AREA, ndm_fhs, fraction_fhs, ndmdates):
     """
     Calculate natural livestock feed production
 
@@ -240,7 +241,7 @@ def fuel_wood(output_folder, lu_fh, ndm_fhs, fraction_fhs, ndmdates):
     if not os.path.exists(out_folder):
         os.mkdir(out_folder)
 
-    area_ha = becgis.map_pixel_area_km(lu_fh) * 100
+    area_ha = AREA * 100
     LULC = RC.Open_tiff_array(lu_fh)
     geo_out, proj, size_X, size_Y = RC.Open_array_info(lu_fh)
 
@@ -361,12 +362,11 @@ def lu_type_average(data_fh, lu_fh, lu_dict):
         out_data[lu_class] = np.nanmean(in_data[mask])
     return out_data
 
-def lu_type_sum(data_fh, lu_fh, lu_dict, convert=None):
+def lu_type_sum(data_fh, lu_fh, AREA, lu_dict, convert=None):
     LULC = RC.Open_tiff_array(lu_fh)
     in_data = becgis.open_as_array(data_fh, nan_values=True)
 #    in_data = RC.Open_tiff_array(data_fh)
     if convert == 'mm_to_km3':
-        AREA = becgis.map_pixel_area_km(data_fh)
         in_data *= AREA / 1e6
     out_data = {}
     for lu_class in list(lu_dict.keys()):

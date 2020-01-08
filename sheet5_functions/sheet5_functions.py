@@ -87,9 +87,8 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
     withdr_fhs = complete_data['supply_sw'][0].tolist()
     return_gw_sw_fhs = complete_data['return_flow_gw_sw'][0].tolist()
     return_sw_sw_fhs = complete_data['return_flow_sw_sw'][0].tolist()
-
+    AREA = becgis.map_pixel_area_km(lu_fh)
     if discharge_out_from_wp:
-        AREA = becgis.map_pixel_area_km(lu_fh)
         added_inflow = dict()
         discharge_sum = dict()
         interbasin_transfers = dict()
@@ -206,7 +205,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
 
     #Splitting up the outflow into committed/ non_utilizable/ utilizable/ non_recoverable
     split_discharge = discharge_split(global_data["wpl_tif"], global_data["environ_water_req"],
-                                      discharge_sum, ro_fhs, fractions_fhs,
+                                      discharge_sum, ro_fhs, AREA, fractions_fhs,
                                       sb_fhs_code_names, date_list)
     #Add arrows to template when possible (dependent on subbasin structure)
     svg_template = sheet_5_dynamic_arrows(dico_in, dico_out, template,
@@ -245,15 +244,15 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
         return_gw_sw_fh = return_gw_sw_fhs[np.where([datestr2 in return_gw_sw_fhs[i] for i in range(len(return_gw_sw_fhs))])[0][0]]
         return_sw_sw_fh = return_sw_sw_fhs[np.where([datestr2 in return_sw_sw_fhs[i] for i in range(len(return_sw_sw_fhs))])[0][0]]
 
-        results[ystr][mstr]['surf_runoff'] = lu_type_sum_subbasins(surf_ro_fh, lu_fh, lu_dict, sb_fhs_code_names)
-        results[ystr][mstr]['base_runoff'] = lu_type_sum_subbasins(base_ro_fh, lu_fh, lu_dict, sb_fhs_code_names)
+        results[ystr][mstr]['surf_runoff'] = lu_type_sum_subbasins(surf_ro_fh, lu_fh, AREA, lu_dict, sb_fhs_code_names)
+        results[ystr][mstr]['base_runoff'] = lu_type_sum_subbasins(base_ro_fh, lu_fh, AREA, lu_dict, sb_fhs_code_names)
 
-        results[ystr][mstr]['total_runoff'] = sum_subbasins(ro_fh, sb_fhs_code_names)
+        results[ystr][mstr]['total_runoff'] = sum_subbasins(ro_fh, AREA, sb_fhs_code_names)
 
-        results[ystr][mstr]['withdrawls'] = lu_type_sum_subbasins(withdr_fh, lu_fh, man_dict, sb_fhs_code_names)
+        results[ystr][mstr]['withdrawls'] = lu_type_sum_subbasins(withdr_fh, lu_fh, AREA, man_dict, sb_fhs_code_names)
 
-        results[ystr][mstr]['return_gw_sw'] = sum_subbasins(return_gw_sw_fh, sb_fhs_code_names)
-        results[ystr][mstr]['return_sw_sw'] = sum_subbasins(return_sw_sw_fh, sb_fhs_code_names)
+        results[ystr][mstr]['return_gw_sw'] = sum_subbasins(return_gw_sw_fh, AREA, sb_fhs_code_names)
+        results[ystr][mstr]['return_sw_sw'] = sum_subbasins(return_sw_sw_fh, AREA, sb_fhs_code_names)
 
         for j in list(results[ystr][mstr]['surf_runoff'][sb_codes[0]].keys()):
             results[ystr][mstr]['surf_runoff']['basin'][j] = np.nansum([results[ystr][mstr]['surf_runoff'][k][j] for k in sb_codes])
@@ -821,7 +820,7 @@ class Vividict(dict):
         value = self[key] = type(self)()
         return value
 
-def lu_type_sum_subbasins(data_fh, lu_fh, lu_dict, sb_fhs_code_names):
+def lu_type_sum_subbasins(data_fh, lu_fh, AREA, lu_dict, sb_fhs_code_names):
     """
     Returns totals in a dict split by subbasin and land use type (PLU, ULU etc)
     Parameters
@@ -836,7 +835,6 @@ def lu_type_sum_subbasins(data_fh, lu_fh, lu_dict, sb_fhs_code_names):
         (sb_fhs,sb_codes,sb_names)
     """
     LULC = becgis.open_as_array(lu_fh)
-    AREA = becgis.map_pixel_area_km(data_fh)
     in_data = becgis.open_as_array(data_fh, nan_values=True) * AREA / 1e6
     out_data = Vividict()
     sb_fhs = list(zip(*sb_fhs_code_names))[0]
@@ -854,7 +852,7 @@ def lu_type_sum_subbasins(data_fh, lu_fh, lu_dict, sb_fhs_code_names):
             out_data[sb_code][lu_class] = np.nansum(in_data[mask])
     return out_data
 
-def sum_subbasins(data_fh, sb_fhs_code_names):
+def sum_subbasins(data_fh, AREA, sb_fhs_code_names):
     """
     Returns totals in a dict split by subbasin
     Parameters
@@ -864,7 +862,6 @@ def sum_subbasins(data_fh, sb_fhs_code_names):
     sb_fhs_code_names : list of tuples
         (sb_fhs,sb_codes,sb_names)
     """
-    AREA = becgis.map_pixel_area_km(data_fh)
     in_data = becgis.open_as_array(data_fh, nan_values=True) * AREA / 1e6
     out_data = Vividict()
     sb_fhs = list(zip(*sb_fhs_code_names))[0]
@@ -911,7 +908,7 @@ def discharge_at_points(PointShapefile, SWpath):
         sw_time = [date.fromordinal(d) for d in SW.variables['time'][:]]
     return sw_time, discharge_natural, discharge_end, stat_name
 
-def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs,
+def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, AREA, fractions_fhs,
                     sb_fhs_code_names, date_list):
     results = Vividict()
     gray_water_fraction = {}
@@ -934,7 +931,6 @@ def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs,
         ystr = "%04d" %(d.year)
         mstr = "%02d" %(d.month)
         ro_fh = ro_fhs[np.where([datestr2 in ro_fhs[i] for i in range(len(ro_fhs))])[0][0]]
-        AREA = becgis.map_pixel_area_km(ro_fh)
         runoff = becgis.open_as_array(ro_fh, nan_values=True) * AREA / 1e6
         fractions_fh = fractions_fhs[np.where([datestr1 in fractions_fhs[i] for i in range(len(fractions_fhs))])[0][0]]
         fractions = becgis.open_as_array(fractions_fh, nan_values=True)
