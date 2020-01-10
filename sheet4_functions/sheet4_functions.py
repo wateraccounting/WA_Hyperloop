@@ -211,7 +211,7 @@ def create_sheet4_6(complete_data, metadata, output_dir, global_data):
         
     complete_data['supply_gw'] = create_gw_supply(metadata, complete_data, output_dir)
     
-    complete_data = bf_reduction_with_gwsup(metadata, complete_data)
+#    complete_data = bf_reduction_with_gwsup(metadata, complete_data)
     
     for date in common_dates:    
         total_supply_tif = complete_data['supply_total'][0][complete_data['supply_total'][1] == date][0]
