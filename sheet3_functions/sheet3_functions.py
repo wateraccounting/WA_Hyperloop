@@ -234,7 +234,7 @@ def calc_Y_WP_year(csv_fh, output_dir, croptype):
     
     years = np.unique(np.array([date.year for date in np.append(start_dates, end_dates)]))
     
-    csv_filename = os.path.join(output_dir, 'Yearly_Yields_WPs_{0}.csv'.format(croptype))
+    csv_filename = os.path.join(output_dir, r'Yearly_'+ os.path.basename(csv_fh))
     csv_file = open(csv_filename, 'w')
     writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     writer.writerow(["Startdate", "Enddate", "Yield [kg/ha]", "Yield_pr [kg/ha]", "Yield_irr [kg/ha]", "WP [kg/m3]", "WP_blue [kg/m3]", "WP_green [kg/m3]", "WC [km3]", "WC_blue [km3]", "WC_green [km3]"])
@@ -421,7 +421,7 @@ def calc_Y_WP_seasons(start_dates, end_dates, lu_fh, lu_class, croptype, etgreen
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)    
     
-    csv_filename = os.path.join(output_dir, 'Yields_WPs_{0}.csv'.format(croptype))
+    csv_filename = os.path.join(output_dir, 'Yields_WPs_{0}_{1}.csv'.format(croptype, int(lu_class)))
     csv_file = open(csv_filename, 'w')
     writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n' )
     
