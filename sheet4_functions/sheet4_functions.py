@@ -1445,48 +1445,49 @@ def create_sheet4(basin, period, units, data, output, template=False, margin = 0
     if data[0] is not None:
         tree1 = ET.parse(svg_template_path_1)
         xml_txt_box = tree1.findall('''.//*[@id='basin1']''')[0]
-        xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+        list(xml_txt_box)[0].text = 'Basin: ' + basin
         
         xml_txt_box = tree1.findall('''.//*[@id='period1']''')[0]
-        xml_txt_box.getchildren()[0].text = 'Period: ' + period
+        list(xml_txt_box)[0].text = 'Period: ' + period
         
         xml_txt_box = tree1.findall('''.//*[@id='units1']''')[0]
         #xml_txt_box.getchildren()[0].text = 'Part 1: Manmade ({0})'.format(units[0])
 
         if np.all([smart_unit, scale > 0]):
-            xml_txt_box.getchildren()[0].text = 'Part 1: Manmade ({0} {1})'.format(10.**-scale, units[1])
+            list(xml_txt_box)[0].text = 'Part 1: Manmade ({0} {1})'.format(10.**-scale, units[1])
         else:
-            xml_txt_box.getchildren()[0].text = 'Part 1: Manmade ({0})'.format(units[1])
+            list(xml_txt_box)[0].text = 'Part 1: Manmade ({0})'.format(units[1])
 
         for key in list(p1.keys()):
-            xml_txt_box = tree1.findall(".//*[@id='{0}']".format(key))[0]
-            if not pd.isnull(p1[key]):
-                xml_txt_box.getchildren()[0].text = '%.2f' % p1[key]
-            else:
-                xml_txt_box.getchildren()[0].text = '-'
+            if tree1.findall(".//*[@id='{0}']".format(key)) != []:
+                xml_txt_box = tree1.findall(".//*[@id='{0}']".format(key))[0]
+                if not pd.isnull(p1[key]):
+                    list(xml_txt_box)[0].text = '%.2f' % p1[key]
+                else:
+                   list(xml_txt_box)[0].text = '-'
                 
     if data[1] is not None:
         tree2 = ET.parse(svg_template_path_2)
         xml_txt_box = tree2.findall('''.//*[@id='basin2']''')[0]
-        xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+        list(xml_txt_box)[0].text = 'Basin: ' + basin
         
         xml_txt_box = tree2.findall('''.//*[@id='period2']''')[0]
-        xml_txt_box.getchildren()[0].text = 'Period: ' + period
+        list(xml_txt_box)[0].text = 'Period: ' + period
         
         xml_txt_box = tree2.findall('''.//*[@id='units2']''')[0]
         #xml_txt_box.getchildren()[0].text = 'Part 2: Natural Landuse ({0})'.format(units[1])
 
         if np.all([smart_unit, scale > 0]):
-            xml_txt_box.getchildren()[0].text = 'Part 2: Natural Landuse ({0} {1})'.format(10**-scale, units[1])
+            list(xml_txt_box)[0].text = 'Part 2: Natural Landuse ({0} {1})'.format(10**-scale, units[1])
         else:
-            xml_txt_box.getchildren()[0].text = 'Part 2: Natural Landuse ({0})'.format(units[1])
+            list(xml_txt_box)[0].text = 'Part 2: Natural Landuse ({0})'.format(units[1])
             
         for key in list(p2.keys()):
             xml_txt_box = tree2.findall(".//*[@id='{0}']".format(key))[0]
             if not pd.isnull(p2[key]):
-                xml_txt_box.getchildren()[0].text = '%.2f' % p2[key]
+                list(xml_txt_box)[0].text = '%.2f' % p2[key]
             else:
-                xml_txt_box.getchildren()[0].text = '-'    
+                list(xml_txt_box)[0].text = '-'    
 
     # Export svg to png    
     if data[0] is not None:

@@ -266,17 +266,17 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     # Titles
 
     xml_txt_box = tree.findall('''.//*[@id='basin']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+    list(xml_txt_box)[0].text = 'Basin: ' + basin
 
     xml_txt_box = tree.findall('''.//*[@id='period']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Period: ' + period
+    list(xml_txt_box)[0].text = 'Period: ' + period
 
     xml_txt_box = tree.findall('''.//*[@id='units']''')[0]
     
     if np.all([smart_unit, scale > 0]):
-        xml_txt_box.getchildren()[0].text = 'Sheet 1: Resource Base ({0} {1})'.format(10**-scale, units)
+        list(xml_txt_box)[0].text = 'Sheet 1: Resource Base ({0} {1})'.format(10**-scale, units)
     else:
-        xml_txt_box.getchildren()[0].text = 'Sheet 1: Resource Base ({0})'.format(units)
+        list(xml_txt_box)[0].text = 'Sheet 1: Resource Base ({0})'.format(units)
 
     # Grey box
 
@@ -290,72 +290,72 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     delta_s = surf_sto + sto_sink
 
     xml_txt_box = tree.findall('''.//*[@id='external_in']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, external_in)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, external_in)
 
     xml_txt_box = tree.findall('''.//*[@id='p_advec']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, p_advec)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, p_advec)
 
     xml_txt_box = tree.findall('''.//*[@id='q_desal']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_desal)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, q_desal)
 
     xml_txt_box = tree.findall('''.//*[@id='q_sw_in']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_sw_in)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, q_sw_in)
 
     xml_txt_box = tree.findall('''.//*[@id='q_gw_in']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_gw_in)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, q_gw_in)
 
     xml_txt_box = tree.findall('''.//*[@id='p_recycled']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, p_recy)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, p_recy)
 
     xml_txt_box = tree.findall('''.//*[@id='gross_inflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, gross_inflow)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, gross_inflow)
 
     if delta_s > 0:
         xml_txt_box = tree.findall('''.//*[@id='pos_delta_s']''')[0]
-        xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, delta_s)
+        list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, delta_s)
 
         xml_txt_box = tree.findall('''.//*[@id='neg_delta_s']''')[0]
-        xml_txt_box.getchildren()[0].text = '0.0'
+        list(xml_txt_box)[0].text = '0.0'
     else:
         xml_txt_box = tree.findall('''.//*[@id='pos_delta_s']''')[0]
-        xml_txt_box.getchildren()[0].text = '0.0'
+        list(xml_txt_box)[0].text = '0.0'
 
         xml_txt_box = tree.findall('''.//*[@id='neg_delta_s']''')[0]
-        xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, -delta_s)
+        list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, -delta_s)
 
     # Pink box
 
     net_inflow = gross_inflow + delta_s
 
     xml_txt_box = tree.findall('''.//*[@id='net_inflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, net_inflow)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, net_inflow)
 
     # Light-green box
 
     land_et = et_l_pr + et_l_ut + et_l_mo + et_l_ma
 
     xml_txt_box = tree.findall('''.//*[@id='landscape_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, land_et)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, land_et)
 
     xml_txt_box = tree.findall('''.//*[@id='green_protected']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_l_pr)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_l_pr)
 
     xml_txt_box = tree.findall('''.//*[@id='green_utilized']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_l_ut)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_l_ut)
 
     xml_txt_box = tree.findall('''.//*[@id='green_modified']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_l_mo)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_l_mo)
 
     xml_txt_box = tree.findall('''.//*[@id='green_managed']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_l_ma)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_l_ma)
 
     xml_txt_box = tree.findall('''.//*[@id='rainfall_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, land_et)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, land_et)
 
     # landscape et
     landsc_et = land_et + et_u_pr + et_u_ut + et_u_mo
     xml_txt_box = tree.findall('''.//*[@id='landscape_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, landsc_et)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, landsc_et)
 
     # Blue box (center)
 
@@ -375,55 +375,55 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     non_rec_flow = et_u_pr + et_u_ut + et_u_mo + et_u_ma - inc_et - other_o
 
     xml_txt_box = tree.findall('''.//*[@id='incremental_etman']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_manmade)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_manmade)
 
     xml_txt_box = tree.findall('''.//*[@id='incremental_etnat']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_natural)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_natural)
 
     xml_txt_box = tree.findall('''.//*[@id='exploitable_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, exploitable_water)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, exploitable_water)
 
     xml_txt_box = tree.findall('''.//*[@id='available_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, available_water)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, available_water)
 
 #    xml_txt_box = tree.findall('''.//*[@id='utilized_flow']''')[0]
-#    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, utilized_flow)
+#    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, utilized_flow)
 
     xml_txt_box = tree.findall('''.//*[@id='blue_protected']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_u_pr)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_u_pr)
 
     xml_txt_box = tree.findall('''.//*[@id='blue_utilized']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_u_ut)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_u_ut)
 
     xml_txt_box = tree.findall('''.//*[@id='blue_modified']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_u_mo)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_u_mo)
 
     xml_txt_box = tree.findall('''.//*[@id='blue_managed']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_u_ma)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_u_ma)
 
     xml_txt_box = tree.findall('''.//*[@id='utilizable_outflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, utilizable_outflow)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, utilizable_outflow)
 
     xml_txt_box = tree.findall('''.//*[@id='non-utilizable_outflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, non_uti)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, non_uti)
 
     xml_txt_box = tree.findall('''.//*[@id='reserved_outflow_max']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, reserved_outflow)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, reserved_outflow)
 
     xml_txt_box = tree.findall('''.//*[@id='non-consumed_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, non_cons_water)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, non_cons_water)
 
 #    xml_txt_box = tree.findall('''.//*[@id='manmade']''')[0]
-#    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_manmade)
+#    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_manmade)
 #
 #    xml_txt_box = tree.findall('''.//*[@id='natural']''')[0]
-#    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_natural)
+#    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_natural)
 
 #    xml_txt_box = tree.findall('''.//*[@id='other']''')[0]
-#    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, other_o)
+#    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, other_o)
 
     xml_txt_box = tree.findall('''.//*[@id='non-recoverable_flow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, non_rec_flow)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, non_rec_flow)
 
     # Blue box (right)
 
@@ -433,16 +433,16 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     q_gw_out = gw_nat_o + gw_uti_o
 
     xml_txt_box = tree.findall('''.//*[@id='outflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, outflow)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, outflow)
 
     xml_txt_box = tree.findall('''.//*[@id='q_sw_outlet']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_sw_out)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, q_sw_out)
 
     xml_txt_box = tree.findall('''.//*[@id='q_sw_out']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, basin_transfers)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, basin_transfers)
 
     xml_txt_box = tree.findall('''.//*[@id='q_gw_out']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_gw_out)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, q_gw_out)
 
     # Dark-green box
 
@@ -451,19 +451,19 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     external_out = depleted_water + outflow
 
     xml_txt_box = tree.findall('''.//*[@id='et_recycled']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, p_recy)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, p_recy)
 
     xml_txt_box = tree.findall('''.//*[@id='consumed_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, consumed_water)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, consumed_water)
 
     xml_txt_box = tree.findall('''.//*[@id='depleted_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, depleted_water)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, depleted_water)
 
     xml_txt_box = tree.findall('''.//*[@id='external_out']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, external_out)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, external_out)
 
     xml_txt_box = tree.findall('''.//*[@id='et_out']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, depleted_water)
+    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, depleted_water)
 
 #    # Export svg to pdf
     tempout_path = output.replace('.pdf', '_temporary.svg')

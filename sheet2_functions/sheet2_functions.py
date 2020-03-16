@@ -1257,18 +1257,18 @@ def create_sheet2_png(basin, period, units, data, output, template=False,
     # Titles
 
     xml_txt_box = tree.findall('''.//*[@id='basin']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+    list(xml_txt_box)[0].text = 'Basin: ' + basin
 
     xml_txt_box = tree.findall('''.//*[@id='period']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Period: ' + period
+    list(xml_txt_box)[0].text = 'Period: ' + period
 
     xml_txt_box = tree.findall('''.//*[@id='units']''')[0]
     
     
     if np.all([smart_unit, scale > 0]):
-        xml_txt_box.getchildren()[0].text = 'Sheet 2: Evapotranspiration ({0} {1})'.format(10**-scale, units)
+        list(xml_txt_box)[0].text = 'Sheet 2: Evapotranspiration ({0} {1})'.format(10**-scale, units)
     else:
-        xml_txt_box.getchildren()[0].text = 'Sheet 2: Evapotranspiration ({0})'.format(units)
+        list(xml_txt_box)[0].text = 'Sheet 2: Evapotranspiration ({0})'.format(units)
 
     # Total ET
     total_et_t1 = c5r1_t1_left + c5r2_t1_left + c5r3_t1_left + c5r4_t1_left + \
@@ -1292,215 +1292,215 @@ def create_sheet2_png(basin, period, units, data, output, template=False,
     t_total_managed_lu = c1_t4_total + c1_t5_total
 
     xml_txt_box = tree.findall('''.//*[@id='total_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_et
+    list(xml_txt_box)[0].text = '%.1f' % total_et
 
     xml_txt_box = tree.findall('''.//*[@id='non-manageble']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_et_t1
+    list(xml_txt_box)[0].text = '%.1f' % total_et_t1
 
     xml_txt_box = tree.findall('''.//*[@id='manageble']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_et_t2
+    list(xml_txt_box)[0].text = '%.1f' % total_et_t2
 
     xml_txt_box = tree.findall('''.//*[@id='managed']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % et_total_managed
+    list(xml_txt_box)[0].text = '%.1f' % et_total_managed
 
     # Totals land use
 
     xml_txt_box = tree.findall('''.//*[@id='protected_lu_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_et_t1
+    list(xml_txt_box)[0].text = '%.1f' % total_et_t1
 
     xml_txt_box = tree.findall('''.//*[@id='protected_lu_t']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1_t1_total
+    list(xml_txt_box)[0].text = '%.1f' % c1_t1_total
 
     xml_txt_box = tree.findall('''.//*[@id='utilized_lu_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_et_t2
+    list(xml_txt_box)[0].text = '%.1f' % total_et_t2
 
     xml_txt_box = tree.findall('''.//*[@id='utilized_lu_t']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1_t2_total
+    list(xml_txt_box)[0].text = '%.1f' % c1_t2_total
 
     xml_txt_box = tree.findall('''.//*[@id='modified_lu_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_et_t3
+    list(xml_txt_box)[0].text = '%.1f' % total_et_t3
 
     xml_txt_box = tree.findall('''.//*[@id='modified_lu_t']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1_t3_total
+    list(xml_txt_box)[0].text = '%.1f' % c1_t3_total
 
     xml_txt_box = tree.findall('''.//*[@id='managed_lu_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % et_total_managed_lu
+    list(xml_txt_box)[0].text = '%.1f' % et_total_managed_lu
 
     xml_txt_box = tree.findall('''.//*[@id='managed_lu_t']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % t_total_managed_lu
+    list(xml_txt_box)[0].text = '%.1f' % t_total_managed_lu
 
     # Table 1
     xml_txt_box = tree.findall('''.//*[@id='plu_et_forest']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r1_t1_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r1_t1_left
 
     xml_txt_box = tree.findall('''.//*[@id='plu_t_forest']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r1_t1
+    list(xml_txt_box)[0].text = '%.1f' % c1r1_t1
 
     xml_txt_box = tree.findall('''.//*[@id='plu_et_shrubland']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r2_t1_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r2_t1_left
 
     xml_txt_box = tree.findall('''.//*[@id='plu_t_shrubland']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r2_t1
+    list(xml_txt_box)[0].text = '%.1f' % c1r2_t1
 
     xml_txt_box = tree.findall('''.//*[@id='plu_et_grasslands']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r3_t1_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r3_t1_left
 
     xml_txt_box = tree.findall('''.//*[@id='plu_t_grasslands']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r3_t1
+    list(xml_txt_box)[0].text = '%.1f' % c1r3_t1
 
     xml_txt_box = tree.findall('''.//*[@id='plu_et_waterbodies']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r4_t1_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r4_t1_left
 
     xml_txt_box = tree.findall('''.//*[@id='plu_t_waterbodies']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r4_t1
+    list(xml_txt_box)[0].text = '%.1f' % c1r4_t1
 
     xml_txt_box = tree.findall('''.//*[@id='plu_et_wetlands']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r5_t1_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r5_t1_left
 
     xml_txt_box = tree.findall('''.//*[@id='plu_t_wetlands']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r5_t1
+    list(xml_txt_box)[0].text = '%.1f' % c1r5_t1
 
     xml_txt_box = tree.findall('''.//*[@id='plu_et_glaciers']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r6_t1_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r6_t1_left
 
     xml_txt_box = tree.findall('''.//*[@id='plu_t_glaciers']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r6_t1
+    list(xml_txt_box)[0].text = '%.1f' % c1r6_t1
 
     xml_txt_box = tree.findall('''.//*[@id='plu_et_others']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r7_t1_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r7_t1_left
 
     xml_txt_box = tree.findall('''.//*[@id='plu_t_others']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r7_t1
+    list(xml_txt_box)[0].text = '%.1f' % c1r7_t1
 
     # Table 2
     xml_txt_box = tree.findall('''.//*[@id='ulu_et_forest']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r1_t2_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r1_t2_left
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_t_forest']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r1_t2
+    list(xml_txt_box)[0].text = '%.1f' % c1r1_t2
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_et_shrubland']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r2_t2_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r2_t2_left
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_t_shrubland']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r2_t2
+    list(xml_txt_box)[0].text = '%.1f' % c1r2_t2
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_et_grasslands']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r3_t2_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r3_t2_left
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_t_grasslands']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r3_t2
+    list(xml_txt_box)[0].text = '%.1f' % c1r3_t2
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_et_waterbodies']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r4_t2_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r4_t2_left
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_t_waterbodies']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r4_t2
+    list(xml_txt_box)[0].text = '%.1f' % c1r4_t2
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_et_wetlands']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r5_t2_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r5_t2_left
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_t_wetlands']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r5_t2
+    list(xml_txt_box)[0].text = '%.1f' % c1r5_t2
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_et_others']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r6_t2_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r6_t2_left
 
     xml_txt_box = tree.findall('''.//*[@id='ulu_t_others']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r6_t2
+    list(xml_txt_box)[0].text = '%.1f' % c1r6_t2
 
     # Table 3
     xml_txt_box = tree.findall('''.//*[@id='molu_et_rainfed']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r1_t3_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r1_t3_left
 
     xml_txt_box = tree.findall('''.//*[@id='molu_t_rainfed']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r1_t3
+    list(xml_txt_box)[0].text = '%.1f' % c1r1_t3
 
     xml_txt_box = tree.findall('''.//*[@id='molu_et_forest']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r2_t3_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r2_t3_left
 
     xml_txt_box = tree.findall('''.//*[@id='molu_t_forest']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r2_t3
+    list(xml_txt_box)[0].text = '%.1f' % c1r2_t3
 
     xml_txt_box = tree.findall('''.//*[@id='molu_et_settlements']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r3_t3_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r3_t3_left
 
     xml_txt_box = tree.findall('''.//*[@id='molu_t_settlements']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r3_t3
+    list(xml_txt_box)[0].text = '%.1f' % c1r3_t3
 
     xml_txt_box = tree.findall('''.//*[@id='molu_et_others']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r4_t3_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r4_t3_left
 
     xml_txt_box = tree.findall('''.//*[@id='molu_t_others']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r4_t3
+    list(xml_txt_box)[0].text = '%.1f' % c1r4_t3
 
     # Table 4
     xml_txt_box = tree.findall('''.//*[@id='malu_et_crops']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r1_t4_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r1_t4_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_crops']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r1_t4
+    list(xml_txt_box)[0].text = '%.1f' % c1r1_t4
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_waterbodies']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r2_t4_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r2_t4_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_waterbodies']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r2_t4
+    list(xml_txt_box)[0].text = '%.1f' % c1r2_t4
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_residential']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r3_t4_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r3_t4_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_residential']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r3_t4
+    list(xml_txt_box)[0].text = '%.1f' % c1r3_t4
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_industry']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r4_t4_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r4_t4_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_industry']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r4_t4
+    list(xml_txt_box)[0].text = '%.1f' % c1r4_t4
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_others1']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r5_t4_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r5_t4_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_others1']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r5_t4
+    list(xml_txt_box)[0].text = '%.1f' % c1r5_t4
 
     # Table 5
     xml_txt_box = tree.findall('''.//*[@id='malu_et_idomestic']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r1_t5_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r1_t5_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_idomestic']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r1_t5
+    list(xml_txt_box)[0].text = '%.1f' % c1r1_t5
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_iindustry']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r2_t5_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r2_t5_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_iindustry']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r2_t5
+    list(xml_txt_box)[0].text = '%.1f' % c1r2_t5
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_greenhouses']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r3_t5_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r3_t5_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_greenhouses']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r3_t5
+    list(xml_txt_box)[0].text = '%.1f' % c1r3_t5
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_livestock']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r4_t5_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r4_t5_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_livestock']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r4_t5
+    list(xml_txt_box)[0].text = '%.1f' % c1r4_t5
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_powerandenergy']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r5_t5_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r5_t5_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_powerandenergy']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r5_t5
+    list(xml_txt_box)[0].text = '%.1f' % c1r5_t5
 
     xml_txt_box = tree.findall('''.//*[@id='malu_et_others2']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c5r6_t5_left
+    list(xml_txt_box)[0].text = '%.1f' % c5r6_t5_left
 
     xml_txt_box = tree.findall('''.//*[@id='malu_t_others2']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % c1r6_t5
+    list(xml_txt_box)[0].text = '%.1f' % c1r6_t5
 
     # Right box
     total_t = c1_t1_total + c1_t2_total + c1_t3_total + \
@@ -1515,19 +1515,19 @@ def create_sheet2_png(basin, period, units, data, output, template=False,
         c4_t4_total + c4_t5_total
 
     xml_txt_box = tree.findall('''.//*[@id='evaporation']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_e
+    list(xml_txt_box)[0].text = '%.1f' % total_e
 
     xml_txt_box = tree.findall('''.//*[@id='transpiration']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_t
+    list(xml_txt_box)[0].text = '%.1f' % total_t
 
     xml_txt_box = tree.findall('''.//*[@id='water']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_water
+    list(xml_txt_box)[0].text = '%.1f' % total_water
 
     xml_txt_box = tree.findall('''.//*[@id='soil']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_soil
+    list(xml_txt_box)[0].text = '%.1f' % total_soil
 
     xml_txt_box = tree.findall('''.//*[@id='interception']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_interception
+    list(xml_txt_box)[0].text = '%.1f' % total_interception
 
     total_agr = c6_t1_total + c6_t2_total + c6_t3_total + \
         c6_t4_total + c6_t5_total
@@ -1545,25 +1545,25 @@ def create_sheet2_png(basin, period, units, data, output, template=False,
         c11_t4_total + c11_t5_total
 
     xml_txt_box = tree.findall('''.//*[@id='non-beneficial']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_non_bene
+    list(xml_txt_box)[0].text = '%.1f' % total_non_bene
 
     xml_txt_box = tree.findall('''.//*[@id='beneficial']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_bene
+    list(xml_txt_box)[0].text = '%.1f' % total_bene
 
     xml_txt_box = tree.findall('''.//*[@id='agriculture']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_agr
+    list(xml_txt_box)[0].text = '%.1f' % total_agr
 
     xml_txt_box = tree.findall('''.//*[@id='environment']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_env
+    list(xml_txt_box)[0].text = '%.1f' % total_env
 
     xml_txt_box = tree.findall('''.//*[@id='economy']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_eco
+    list(xml_txt_box)[0].text = '%.1f' % total_eco
 
     xml_txt_box = tree.findall('''.//*[@id='energy']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_ene
+    list(xml_txt_box)[0].text = '%.1f' % total_ene
 
     xml_txt_box = tree.findall('''.//*[@id='leisure']''')[0]
-    xml_txt_box.getchildren()[0].text = '%.1f' % total_lei
+    list(xml_txt_box)[0].text = '%.1f' % total_lei
 
     # Export svg to png
     tempout_path = output.replace('.pdf', '_temporary.svg')
