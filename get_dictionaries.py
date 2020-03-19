@@ -5,6 +5,7 @@ Created on Mon Oct 03 13:36:07 2016
 @author: Bert Coerver, b.coerver@unesco-ihe.org
 """
 
+from builtins import zip
 def get_sheet7_classes():   
     live_feed = {'Pasture':.5,
                  'Crop':.25}
@@ -63,9 +64,9 @@ def get_sheet7_classes():
     }
 
     sheet7_lulc_classes =dict()
-    for k in sheet7_lulc.keys():
+    for k in list(sheet7_lulc.keys()):
         l = []
-        for k2 in sheet7_lulc[k].keys():
+        for k2 in list(sheet7_lulc[k].keys()):
             l.append(sheet7_lulc[k][k2])
         sheet7_lulc_classes[k]=[item for sublist in l for item in sublist]
     return live_feed, feed_dict, abv_grnd_biomass_ratio,fuel_dict,sheet7_lulc_classes,c_fraction
@@ -157,7 +158,7 @@ def get_lulc_cmap():
     79: (0.15686274509803921, 0.15686274509803921, 0.15686274509803921), 
     80: (0.0, 0.0, 0.0)}
 
-    cmap = LinearSegmentedColormap.from_list('WA_LULC', cm_dict.values(), N = 80)
+    cmap = LinearSegmentedColormap.from_list('WA_LULC', list(cm_dict.values()), N = 80)
     
     return cmap
     
@@ -369,7 +370,7 @@ def get_sheet1_classes(lulc_version = '4.0'):
     categories = ['Protected', 'Utilized', 'Modified', 'Managed']
     sheet1_classes = dict()
     for cat in categories:
-        sheet1_classes[cat] = [key for key, value in zip(lulc_dict.keys(), lulc_dict.values()) if value[1] == cat]
+        sheet1_classes[cat] = [key for key, value in zip(list(lulc_dict.keys()), list(lulc_dict.values())) if value[1] == cat]
 
     return sheet1_classes
 

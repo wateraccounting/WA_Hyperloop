@@ -4,6 +4,9 @@ Created on Tue Nov 15 14:21:43 2016
 
 @author: bec
 """
+from __future__ import print_function
+from builtins import str
+from builtins import zip
 import os
 import csv
 import datetime
@@ -14,7 +17,9 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
-
+import pandas as pd
+import xml.etree.ElementTree as ET
+import cairosvg
 
 import WA_Hyperloop.becgis as becgis
 import WA_Hyperloop.get_dictionaries as gd
@@ -30,7 +35,7 @@ def create_sheet3(complete_data, metadata, output_dir):
     wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_non_crop_dictionary = gd.get_sheet3_empties()
     years = dict()
 
-    LULC = becgis.OpenAsArray(metadata['lu'], nan_values = True)
+    LULC = becgis.open_as_array(metadata['lu'], nan_values = True)
     
     for crop in metadata['crops']:
         if crop[4] in LULC:
@@ -45,7 +50,7 @@ def create_sheet3(complete_data, metadata, output_dir):
                 wp_y_rainfed_dictionary[crop[2]][crop[3]] = result
             years[crop[4]] = [date.year for date in read_csv(result)[0]][1:]
         else:
-            print "skipping crop with lu-class {0}, not on LU-map".format(crop[4])
+            print("skipping crop with lu-class {0}, not on LU-map".format(crop[4]))
             continue
     
     if metadata['non_crop'] is not None:
@@ -54,7 +59,7 @@ def create_sheet3(complete_data, metadata, output_dir):
             crp = ['Meat', 'Milk', 'Aquaculture', 'Timber']
             plot_Y_WP(result, os.path.join(output_dir,'WP_Y_Yearly_graphs'), croptype = crp[i], catchment_name = metadata['name'], filetype = 'png')
 
-    years = becgis.CommonDates(years.values())
+    years = becgis.common_dates(list(years.values()))
     
     if metadata['non_crop'] is not None:
         wp_y_non_crop_dictionary['Livestock']['Meat'] = metadata['non_crop']['meat']
@@ -64,8 +69,8 @@ def create_sheet3(complete_data, metadata, output_dir):
 
     for year in years:
         csv_fh_a, csv_fh_b = create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_non_crop_dictionary, year, output_dir)
-        output_fh_a = csv_fh_a[:-3] + 'png'
-        output_fh_b = csv_fh_b[:-3] + 'png'
+        output_fh_a = csv_fh_a[:-3] + 'pdf'
+        output_fh_b = csv_fh_b[:-3] + 'pdf'
         sheet3a_fh, sheet3b_fh = create_sheet3_png(metadata['name'], str(year), ['km3/year', 'kg/ha/year', 'kg/m3'], [csv_fh_a, csv_fh_b], [output_fh_a, output_fh_b], template = [get_path('sheet3_1_svg'),get_path('sheet3_2_svg')])
      
     return complete_data
@@ -132,16 +137,16 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
     first_row_b = ["USE","CLASS","SUBCLASS","TYPE","SUBTYPE","LAND_PRODUCTIVITY","WATER_PRODUCTIVITY"]
     first_row_a = ["USE","CLASS","SUBCLASS","TYPE","SUBTYPE","WATER_CONSUMPTION"]
     
-    csv_file_b = open(output_csv_fh_b, 'wb')
-    writer_b = csv.writer(csv_file_b, delimiter=';')
+    csv_file_b = open(output_csv_fh_b, 'w')
+    writer_b = csv.writer(csv_file_b, delimiter=';', lineterminator = '\n')
     writer_b.writerow(first_row_b)
     
-    csv_file_a = open(output_csv_fh_a, 'wb')
-    writer_a = csv.writer(csv_file_a, delimiter=';')
+    csv_file_a = open(output_csv_fh_a, 'w')
+    writer_a = csv.writer(csv_file_a, delimiter=';', lineterminator = '\n')
     writer_a.writerow(first_row_a)
     
-    for TYPE in wp_y_irrigated_dictionary.keys():
-        for SUBTYPE in wp_y_irrigated_dictionary[TYPE].keys():
+    for TYPE in list(wp_y_irrigated_dictionary.keys()):
+        for SUBTYPE in list(wp_y_irrigated_dictionary[TYPE].keys()):
             if type(wp_y_irrigated_dictionary[TYPE][SUBTYPE]) is type(None):
                 writer_b.writerow(["CROP","IRRIGATED","Yield rainfall",TYPE,SUBTYPE,"nan","nan"])
                 writer_b.writerow(["CROP","IRRIGATED","Incremental yield",TYPE,SUBTYPE,"nan","nan"])
@@ -157,8 +162,8 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
                 writer_a.writerow(["CROP","IRRIGATED","ET rainfall",TYPE,SUBTYPE,WCgreen[mask][0]])
                 writer_a.writerow(["CROP","IRRIGATED","Incremental ET",TYPE,SUBTYPE,WCblue[mask][0]])
                 
-    for TYPE in wp_y_rainfed_dictionary.keys():
-        for SUBTYPE in wp_y_rainfed_dictionary[TYPE].keys():
+    for TYPE in list(wp_y_rainfed_dictionary.keys()):
+        for SUBTYPE in list(wp_y_rainfed_dictionary[TYPE].keys()):
             if type(wp_y_rainfed_dictionary[TYPE][SUBTYPE]) is type(None):
                 writer_b.writerow(["CROP","RAINFED","Yield",TYPE,SUBTYPE,"nan","nan"])
                 writer_a.writerow(["CROP","RAINFED","ET",TYPE,SUBTYPE,"nan"])
@@ -168,8 +173,8 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
                 writer_b.writerow(["CROP","RAINFED","Yield",TYPE,SUBTYPE,Y[mask][0],WP[mask][0]])
                 writer_a.writerow(["CROP","RAINFED","ET",TYPE,SUBTYPE,WC[mask][0]])
     
-    for TYPE in wp_y_non_crop_dictionary.keys():
-        for SUBTYPE in wp_y_non_crop_dictionary[TYPE].keys():
+    for TYPE in list(wp_y_non_crop_dictionary.keys()):
+        for SUBTYPE in list(wp_y_non_crop_dictionary[TYPE].keys()):
             if type(wp_y_non_crop_dictionary[TYPE][SUBTYPE]) is type(None):
                 writer_b.writerow(["NON-CROP","RAINFED","Yield",TYPE,SUBTYPE,"nan","nan"])
                 writer_b.writerow(["NON-CROP","IRRIGATED","Yield rainfall",TYPE,SUBTYPE,"nan","nan"])
@@ -229,9 +234,9 @@ def calc_Y_WP_year(csv_fh, output_dir, croptype):
     
     years = np.unique(np.array([date.year for date in np.append(start_dates, end_dates)]))
     
-    csv_filename = os.path.join(output_dir, 'Yearly_Yields_WPs_{0}.csv'.format(croptype))
-    csv_file = open(csv_filename, 'wb')
-    writer = csv.writer(csv_file, delimiter=';')
+    csv_filename = os.path.join(output_dir, r'Yearly_'+ os.path.basename(csv_fh))
+    csv_file = open(csv_filename, 'w')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     writer.writerow(["Startdate", "Enddate", "Yield [kg/ha]", "Yield_pr [kg/ha]", "Yield_irr [kg/ha]", "WP [kg/m3]", "WP_blue [kg/m3]", "WP_green [kg/m3]", "WC [km3]", "WC_blue [km3]", "WC_green [km3]"])
     
     for year in years:
@@ -416,9 +421,9 @@ def calc_Y_WP_seasons(start_dates, end_dates, lu_fh, lu_class, croptype, etgreen
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)    
     
-    csv_filename = os.path.join(output_dir, 'Yields_WPs_{0}.csv'.format(croptype))
-    csv_file = open(csv_filename, 'wb')
-    writer = csv.writer(csv_file, delimiter=';')
+    csv_filename = os.path.join(output_dir, 'Yields_WPs_{0}_{1}.csv'.format(croptype, int(lu_class)))
+    csv_file = open(csv_filename, 'w')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n' )
     
     writer.writerow(["Startdate", "Enddate", "Yield [kg/ha]", "Yield_pr [kg/ha]", "Yield_irr [kg/ha]", "WP [kg/m3]", "WP_blue [kg/m3]", "WP_green [kg/m3]", "WC [km3]", "WC_blue [km3]", "WC_green [km3]"])
     for startdate, enddate in zip(start_dates, end_dates):
@@ -514,7 +519,7 @@ def calc_Y_WP_season(startdate, enddate, lu_fh, lu_class, croptype, etgreen_fhs,
     Wc_green : float
         The green water consumption for the croptype.
     """
-    common_dates = becgis.CommonDates([etblue_dates, etgreen_dates, p_dates, ndm_dates])
+    common_dates = becgis.common_dates([etblue_dates, etgreen_dates, p_dates, ndm_dates])
     
     harvest_index = HIWC_dict[croptype][0]  
     moisture_content = HIWC_dict[croptype][1]
@@ -543,23 +548,23 @@ def calc_Y_WP_season(startdate, enddate, lu_fh, lu_class, croptype, etgreen_fhs,
         fractions[0] = (start_month_length - startdate.day + 1) / start_month_length
         fractions[-1] = (enddate.day -1) / end_month_length
         
-        NDMs = np.stack([becgis.OpenAsArray(ndm_fhs[ndm_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
+        NDMs = np.stack([becgis.open_as_array(ndm_fhs[ndm_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
         NDM = np.nansum(NDMs, axis=2)
         del NDMs
         
-        ETGREENs = np.stack([becgis.OpenAsArray(etgreen_fhs[etgreen_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
+        ETGREENs = np.stack([becgis.open_as_array(etgreen_fhs[etgreen_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
         ETGREEN = np.nansum(ETGREENs, axis=2)
         del ETGREENs
         
-        ETBLUEs = np.stack([becgis.OpenAsArray(etblue_fhs[etblue_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
+        ETBLUEs = np.stack([becgis.open_as_array(etblue_fhs[etblue_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
         ETBLUE = np.nansum(ETBLUEs, axis=2)
         del ETBLUEs
         
-        Ps = np.stack([becgis.OpenAsArray(p_fhs[p_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
+        Ps = np.stack([becgis.open_as_array(p_fhs[p_dates == date][0], nan_values = True) * fraction for date, fraction in zip(req_dates, fractions)], axis=2)
         P = np.nansum(Ps, axis=2)
         del Ps
         
-        LULC = becgis.OpenAsArray(lu_fh)
+        LULC = becgis.open_as_array(lu_fh)
         
         NDM[NDM == 0] = np.nan
         NDM[LULC != lu_class] = ETBLUE[LULC != lu_class] = ETGREEN[LULC != lu_class] =  np.nan
@@ -599,7 +604,7 @@ def calc_Y_WP_season(startdate, enddate, lu_fh, lu_class, croptype, etgreen_fhs,
         Et_blue = np.nanmean(ETBLUE)
         Et_green = np.nanmean(ETGREEN)
         
-        areas = becgis.MapPixelAreakm(lu_fh)
+        areas = becgis.map_pixel_area_km(lu_fh)
         Wc_blue = np.nansum(ETBLUE / 1000**2 * areas)
         Wc_green = np.nansum(ETGREEN / 1000**2 * areas)
         Wc = Wc_blue + Wc_green
@@ -647,12 +652,12 @@ def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filety
     plt.clf()
     plt.grid(b=True, which='Major', color='0.65',linestyle='--', zorder = 0)
     ax = fig.add_subplot(111)
-    ax.bar(start_dates, Yirr, ordinal_enddates-ordinal_startdates, color = '#6bb8cc', label = 'Yield from irrigation', linewidth = 2, edgecolor = 'w')
-    ax.bar(start_dates, Ypr, ordinal_enddates-ordinal_startdates, bottom = Yirr, color = '#a3db76', label = 'Yield from precipitation', linewidth = 2, edgecolor = 'w')
+    ax.bar(start_dates, Yirr, ordinal_enddates-ordinal_startdates, color = '#6bb8cc', label = 'Yield from irrigation', linewidth = 2, edgecolor = 'w', align='edge')
+    ax.bar(start_dates, Ypr, ordinal_enddates-ordinal_startdates, bottom = Yirr, color = '#a3db76', label = 'Yield from precipitation', linewidth = 2, edgecolor = 'w', align='edge')
     ax.set_title('Seasonal Yield, {0} in {1}'.format(croptype, catchment_name))
     ax.set_xlabel('Time')
     ax.set_ylabel('Yield [kg/ha]')
-    [r.set_zorder(10) for r in ax.spines.itervalues()]
+    [r.set_zorder(10) for r in ax.spines.values()]
     fig.autofmt_xdate()
     ax.legend(loc = 'upper left',fancybox=True, shadow=True)
     ax.set_ylim([0, np.max(Y) * 1.2])
@@ -670,18 +675,17 @@ def plot_Y_WP(csv_fh, output_dir, croptype = None, catchment_name = None, filety
     ax.legend(handles=[red_patch,blue_line, green_line],loc = 'upper left',fancybox=True, shadow=True)
     ax.bar(ordinal_meandates, WPblue, color = 'w', linewidth = 2, edgecolor = 'w', xerr = (ordinal_enddates-ordinal_startdates)/2.2, ecolor = '#6bb8cc', capsize = 0, error_kw = {'lw': 3})
     ax.bar(ordinal_meandates, WPgreen, color = 'w', linewidth = 2, edgecolor = 'w', xerr = (ordinal_enddates-ordinal_startdates)/2.2, ecolor = '#a3db76', capsize = 0, error_kw = {'lw': 3})
-    ax.bar(start_dates, WP, ordinal_enddates-ordinal_startdates, color = '#d98d8e', label = 'WP', linewidth = 2, edgecolor = 'w')
+    ax.bar(start_dates, WP, ordinal_enddates-ordinal_startdates, color = '#d98d8e', label = 'WP', linewidth=2, edgecolor='w', align='edge')
     ax.set_title('Seasonal Water Productivity, {0} in {1}'.format(croptype, catchment_name))
     ax.set_ylabel('Water Productivity [kg/m3]')
     ax.set_xlabel('Time')
     ax.set_ylim([0, max(max(WP), max(WPblue), max(WPgreen)) *1.2])
     fig.autofmt_xdate()
-    [r.set_zorder(10) for r in ax.spines.itervalues()]
+    [r.set_zorder(10) for r in ax.spines.values()]
     plt.savefig(os.path.join(output_dir,'{0}_wps.{1}'.format(croptype,filetype)))    
 
-import pandas as pd
-import xml.etree.ElementTree as ET
-import subprocess
+
+
 
 def create_sheet3_png(basin, period, units, data, output, template=False):
 
@@ -1166,1010 +1170,284 @@ def create_sheet3_png(basin, period, units, data, output, template=False):
     # Titles
 
     xml_txt_box = tree1.findall('''.//*[@id='basin']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+    list(xml_txt_box)[0].text = 'Basin: ' + basin
 
     xml_txt_box = tree1.findall('''.//*[@id='period']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Period: ' + period
+    list(xml_txt_box)[0].text = 'Period: ' + period
 
     xml_txt_box = tree1.findall('''.//*[@id='units']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Part 1: Agricultural water consumption (' + units[0] + ')'
+    list(xml_txt_box)[0].text = 'Part 1: Agricultural water consumption (' + units[0] + ')'
 
     xml_txt_box = tree2.findall('''.//*[@id='basin2']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+    list(xml_txt_box)[0].text = 'Basin: ' + basin
 
     xml_txt_box = tree2.findall('''.//*[@id='period2']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Period: ' + period
+    list(xml_txt_box)[0].text = 'Period: ' + period
 
     xml_txt_box = tree2.findall('''.//*[@id='units2']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Part 2: Land productivity (' + units[1] + ') and water productivity (' + units[2] + ')'
+    list(xml_txt_box)[0].text = 'Part 2: Land productivity (' + units[1] + ') and water productivity (' + units[2] + ')'
 
     # Part 1
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c01']''')[0]
-    if not pd.isnull(crop_r01c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c02']''')[0]
-    if not pd.isnull(crop_r01c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c03']''')[0]
-    if not pd.isnull(crop_r01c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c04']''')[0]
-    if not pd.isnull(crop_r01c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c05']''')[0]
-    if not pd.isnull(crop_r01c05):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c06']''')[0]
-    if not pd.isnull(crop_r01c06):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c07']''')[0]
-    if not pd.isnull(crop_r01c07):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c08']''')[0]
-    if not pd.isnull(crop_r01c08):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c09']''')[0]
-    if not pd.isnull(crop_r01c09):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c10']''')[0]
-    if not pd.isnull(crop_r01c10):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c11']''')[0]
-    if not pd.isnull(crop_r01c11):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01c12']''')[0]
-    if not pd.isnull(crop_r01c12):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r01']''')[0]
-    if not pd.isnull(crop_r01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c01']''')[0]
-    if not pd.isnull(crop_r02c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c02']''')[0]
-    if not pd.isnull(crop_r02c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c03']''')[0]
-    if not pd.isnull(crop_r02c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c04']''')[0]
-    if not pd.isnull(crop_r02c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c05']''')[0]
-    if not pd.isnull(crop_r02c05):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c06']''')[0]
-    if not pd.isnull(crop_r02c06):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c07']''')[0]
-    if not pd.isnull(crop_r02c07):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c08']''')[0]
-    if not pd.isnull(crop_r02c08):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c09']''')[0]
-    if not pd.isnull(crop_r02c09):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c10']''')[0]
-    if not pd.isnull(crop_r02c10):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c11']''')[0]
-    if not pd.isnull(crop_r02c11):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02c12']''')[0]
-    if not pd.isnull(crop_r02c12):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r02']''')[0]
-    if not pd.isnull(crop_r02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c01']''')[0]
-    if not pd.isnull(crop_r03c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c02']''')[0]
-    if not pd.isnull(crop_r03c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c03']''')[0]
-    if not pd.isnull(crop_r03c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c04']''')[0]
-    if not pd.isnull(crop_r03c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c05']''')[0]
-    if not pd.isnull(crop_r03c05):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c06']''')[0]
-    if not pd.isnull(crop_r03c06):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c07']''')[0]
-    if not pd.isnull(crop_r03c07):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c08']''')[0]
-    if not pd.isnull(crop_r03c08):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c09']''')[0]
-    if not pd.isnull(crop_r03c09):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c10']''')[0]
-    if not pd.isnull(crop_r03c10):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c11']''')[0]
-    if not pd.isnull(crop_r03c11):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03c12']''')[0]
-    if not pd.isnull(crop_r03c12):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r03']''')[0]
-    if not pd.isnull(crop_r03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c01']''')[0]
-    if not pd.isnull(crop_r04c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c02']''')[0]
-    if not pd.isnull(crop_r04c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c03']''')[0]
-    if not pd.isnull(crop_r04c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c04']''')[0]
-    if not pd.isnull(crop_r04c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c05']''')[0]
-    if not pd.isnull(crop_r04c05):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c06']''')[0]
-    if not pd.isnull(crop_r04c06):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c07']''')[0]
-    if not pd.isnull(crop_r04c07):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c08']''')[0]
-    if not pd.isnull(crop_r04c08):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c09']''')[0]
-    if not pd.isnull(crop_r04c09):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c10']''')[0]
-    if not pd.isnull(crop_r04c10):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c11']''')[0]
-    if not pd.isnull(crop_r04c11):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04c12']''')[0]
-    if not pd.isnull(crop_r04c12):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='crop_r04']''')[0]
-    if not pd.isnull(crop_r04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % crop_r04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r01c01']''')[0]
-    if not pd.isnull(noncrop_r01c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r01c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r01c02']''')[0]
-    if not pd.isnull(noncrop_r01c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r01c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r01']''')[0]
-    if not pd.isnull(noncrop_r01) and noncrop_r01 > 0.001:
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r02c01']''')[0]
-    if not pd.isnull(noncrop_r02c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r02c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r02c02']''')[0]
-    if not pd.isnull(noncrop_r02c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r02c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r02']''')[0]
-    if not pd.isnull(noncrop_r02) and noncrop_r02 > 0.001:
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r03c01']''')[0]
-    if not pd.isnull(noncrop_r03c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r03c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r03c02']''')[0]
-    if not pd.isnull(noncrop_r03c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r03c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r03']''')[0]
-    if not pd.isnull(noncrop_r03) and noncrop_r03 > 0.001:
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r04c01']''')[0]
-    if not pd.isnull(noncrop_r04c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r04c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r04c02']''')[0]
-    if not pd.isnull(noncrop_r04c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r04c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r04']''')[0]
-    if not pd.isnull(noncrop_r04) and noncrop_r04 > 0.001:
-        xml_txt_box.getchildren()[0].text = '%.2f' % noncrop_r04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
+    p1 = {
+        'crop_r01c01' : crop_r01c01,
+        'crop_r01c02' : crop_r01c02,
+        'crop_r01c03' : crop_r01c03,
+        'crop_r01c04' : crop_r01c04,
+        'crop_r01c05' : crop_r01c05,
+        'crop_r01c06' : crop_r01c06,
+        'crop_r01c07' : crop_r01c07,
+        'crop_r01c08' : crop_r01c08,
+        'crop_r01c09' : crop_r01c09,
+        'crop_r01c10' : crop_r01c10,
+        'crop_r01c11' : crop_r01c11,
+        'crop_r01c12' : crop_r01c12,
+        'crop_r01' : crop_r01,
+        'crop_r02c01' : crop_r02c01,
+        'crop_r02c02' : crop_r02c02,
+        'crop_r02c03' : crop_r02c03,
+        'crop_r02c04' : crop_r02c04,
+        'crop_r02c05' : crop_r02c05,
+        'crop_r02c06' : crop_r02c06,
+        'crop_r02c07' : crop_r02c07,
+        'crop_r02c08' : crop_r02c08,
+        'crop_r02c09' : crop_r02c09,
+        'crop_r02c10' : crop_r02c10,
+        'crop_r02c11' : crop_r02c11,
+        'crop_r02c12' : crop_r02c12,
+        'crop_r02' : crop_r02,
+        'crop_r03c01' : crop_r03c01,
+        'crop_r03c02' : crop_r03c02,
+        'crop_r03c03' : crop_r03c03,
+        'crop_r03c04' : crop_r03c04,
+        'crop_r03c05' : crop_r03c05,
+        'crop_r03c06' : crop_r03c06,
+        'crop_r03c07' : crop_r03c07,
+        'crop_r03c08' : crop_r03c08,
+        'crop_r03c09' : crop_r03c09,
+        'crop_r03c10' : crop_r03c10,
+        'crop_r03c11' : crop_r03c11,
+        'crop_r03c12' : crop_r03c12,
+        'crop_r03' : crop_r03,
+        'crop_r04c01' : crop_r04c01,
+        'crop_r04c02' : crop_r04c02,
+        'crop_r04c03' : crop_r04c03,
+        'crop_r04c04' : crop_r04c04,
+        'crop_r04c05' : crop_r04c05,
+        'crop_r04c06' : crop_r04c06,
+        'crop_r04c07' : crop_r04c07,
+        'crop_r04c08' : crop_r04c08,
+        'crop_r04c09' : crop_r04c09,
+        'crop_r04c10' : crop_r04c10,
+        'crop_r04c11' : crop_r04c11,
+        'crop_r04c12' : crop_r04c12,
+        'crop_r04' : crop_r04,
+        'noncrop_r01c01' : noncrop_r01c01,
+        'noncrop_r01c02' : noncrop_r01c02,
+        'noncrop_r01' : noncrop_r01,
+        'noncrop_r02c01' : noncrop_r02c01,
+        'noncrop_r02c02' : noncrop_r02c02,
+        'noncrop_r02' : noncrop_r02,
+        'noncrop_r03c01' : noncrop_r03c01,
+        'noncrop_r03c02' : noncrop_r03c02,
+        'noncrop_r03' : noncrop_r03,
+        'noncrop_r04c01' : noncrop_r04c01,
+        'noncrop_r04c02' : noncrop_r04c02,
+        'noncrop_r04' : noncrop_r04
+            } 
+    
+    for key in list(p1.keys()):
+        if tree1.findall(".//*[@id='{0}']".format(key)) != []:
+            xml_txt_box = tree1.findall(".//*[@id='{0}']".format(key))[0]
+            if not pd.isnull(p1[key]):
+                list(xml_txt_box)[0].text = '%.2f' % p1[key]
+            else:
+               list(xml_txt_box)[0].text = '-'    
+  
+#    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r01']''')[0]
+#    if not pd.isnull(noncrop_r01) and noncrop_r01 > 0.001:
+#        list(xml_txt_box)[0].text = '%.2f' % noncrop_r01
+#    else:
+#        list(xml_txt_box)[0].text = '-'
+
+#    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r02']''')[0]
+#    if not pd.isnull(noncrop_r02) and noncrop_r02 > 0.001:
+#        list(xml_txt_box)[0].text = '%.2f' % noncrop_r02
+#    else:
+#        list(xml_txt_box)[0].text = '-'
+
+#    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r03']''')[0]
+#    if not pd.isnull(noncrop_r03) and noncrop_r03 > 0.001:
+#        list(xml_txt_box)[0].text = '%.2f' % noncrop_r03
+#    else:
+#        list(xml_txt_box)[0].text = '-'
+
+#    xml_txt_box = tree1.findall('''.//*[@id='noncrop_r04']''')[0]
+#    if not pd.isnull(noncrop_r04) and noncrop_r04 > 0.001:
+#        list(xml_txt_box)[0].text = '%.2f' % noncrop_r04
+#    else:
+#        list(xml_txt_box)[0].text = '-'
 
     # Part 2
-    xml_txt_box = tree1.findall('''.//*[@id='ag_water_cons']''')[0]
-    if not pd.isnull(ag_water_cons):
-        xml_txt_box.getchildren()[0].text = '%.2f' % ag_water_cons
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c01']''')[0]
-    if not pd.isnull(lp_r01c01):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c02']''')[0]
-    if not pd.isnull(lp_r01c02):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c03']''')[0]
-    if not pd.isnull(lp_r01c03):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c04']''')[0]
-    if not pd.isnull(lp_r01c04):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c05']''')[0]
-    if not pd.isnull(lp_r01c05):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c06']''')[0]
-    if not pd.isnull(lp_r01c06):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c07']''')[0]
-    if not pd.isnull(lp_r01c07):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c08']''')[0]
-    if not pd.isnull(lp_r01c08):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c09']''')[0]
-    if not pd.isnull(lp_r01c09):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c10']''')[0]
-    if not pd.isnull(lp_r01c10):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c11']''')[0]
-    if not pd.isnull(lp_r01c11):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r01c12']''')[0]
-    if not pd.isnull(lp_r01c12):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r01c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c01']''')[0]
-    if not pd.isnull(lp_r02c01):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c02']''')[0]
-    if not pd.isnull(lp_r02c02):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c03']''')[0]
-    if not pd.isnull(lp_r02c03):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c04']''')[0]
-    if not pd.isnull(lp_r02c04):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c05']''')[0]
-    if not pd.isnull(lp_r02c05):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c06']''')[0]
-    if not pd.isnull(lp_r02c06):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c07']''')[0]
-    if not pd.isnull(lp_r02c07):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c08']''')[0]
-    if not pd.isnull(lp_r02c08):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c09']''')[0]
-    if not pd.isnull(lp_r02c09):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c10']''')[0]
-    if not pd.isnull(lp_r02c10):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c11']''')[0]
-    if not pd.isnull(lp_r02c11):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r02c12']''')[0]
-    if not pd.isnull(lp_r02c12):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r02c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c01']''')[0]
-    if not pd.isnull(lp_r03c01):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c02']''')[0]
-    if not pd.isnull(lp_r03c02):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c03']''')[0]
-    if not pd.isnull(lp_r03c03):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c04']''')[0]
-    if not pd.isnull(lp_r03c04):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c05']''')[0]
-    if not pd.isnull(lp_r03c05):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c06']''')[0]
-    if not pd.isnull(lp_r03c06):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c07']''')[0]
-    if not pd.isnull(lp_r03c07):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c08']''')[0]
-    if not pd.isnull(lp_r03c08):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c09']''')[0]
-    if not pd.isnull(lp_r03c09):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c10']''')[0]
-    if not pd.isnull(lp_r03c10):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c11']''')[0]
-    if not pd.isnull(lp_r03c11):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r03c12']''')[0]
-    if not pd.isnull(lp_r03c12):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r03c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c01']''')[0]
-    if not pd.isnull(lp_r04c01):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c02']''')[0]
-    if not pd.isnull(lp_r04c02):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c03']''')[0]
-    if not pd.isnull(lp_r04c03):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c04']''')[0]
-    if not pd.isnull(lp_r04c04):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c05']''')[0]
-    if not pd.isnull(lp_r04c05):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c06']''')[0]
-    if not pd.isnull(lp_r04c06):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c07']''')[0]
-    if not pd.isnull(lp_r04c07):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c08']''')[0]
-    if not pd.isnull(lp_r04c08):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c09']''')[0]
-    if not pd.isnull(lp_r04c09):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c10']''')[0]
-    if not pd.isnull(lp_r04c10):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c11']''')[0]
-    if not pd.isnull(lp_r04c11):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r04c12']''')[0]
-    if not pd.isnull(lp_r04c12):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r04c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c01']''')[0]
-    if not pd.isnull(wp_r01c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c02']''')[0]
-    if not pd.isnull(wp_r01c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c03']''')[0]
-    if not pd.isnull(wp_r01c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c04']''')[0]
-    if not pd.isnull(wp_r01c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c05']''')[0]
-    if not pd.isnull(wp_r01c05):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c06']''')[0]
-    if not pd.isnull(wp_r01c06):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c07']''')[0]
-    if not pd.isnull(wp_r01c07):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c08']''')[0]
-    if not pd.isnull(wp_r01c08):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c09']''')[0]
-    if not pd.isnull(wp_r01c09):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c10']''')[0]
-    if not pd.isnull(wp_r01c10):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c11']''')[0]
-    if not pd.isnull(wp_r01c11):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r01c12']''')[0]
-    if not pd.isnull(wp_r01c12):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r01c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c01']''')[0]
-    if not pd.isnull(wp_r02c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c02']''')[0]
-    if not pd.isnull(wp_r02c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c03']''')[0]
-    if not pd.isnull(wp_r02c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c04']''')[0]
-    if not pd.isnull(wp_r02c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c05']''')[0]
-    if not pd.isnull(wp_r02c05):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c06']''')[0]
-    if not pd.isnull(wp_r02c06):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c07']''')[0]
-    if not pd.isnull(wp_r02c07):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c08']''')[0]
-    if not pd.isnull(wp_r02c08):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c09']''')[0]
-    if not pd.isnull(wp_r02c09):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c10']''')[0]
-    if not pd.isnull(wp_r02c10):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c11']''')[0]
-    if not pd.isnull(wp_r02c11):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r02c12']''')[0]
-    if not pd.isnull(wp_r02c12):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r02c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c01']''')[0]
-    if not pd.isnull(wp_r03c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c02']''')[0]
-    if not pd.isnull(wp_r03c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c03']''')[0]
-    if not pd.isnull(wp_r03c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c04']''')[0]
-    if not pd.isnull(wp_r03c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c05']''')[0]
-    if not pd.isnull(wp_r03c05):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c06']''')[0]
-    if not pd.isnull(wp_r03c06):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c07']''')[0]
-    if not pd.isnull(wp_r03c07):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c08']''')[0]
-    if not pd.isnull(wp_r03c08):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c09']''')[0]
-    if not pd.isnull(wp_r03c09):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c10']''')[0]
-    if not pd.isnull(wp_r03c10):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c11']''')[0]
-    if not pd.isnull(wp_r03c11):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r03c12']''')[0]
-    if not pd.isnull(wp_r03c12):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r03c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c01']''')[0]
-    if not pd.isnull(wp_r04c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c02']''')[0]
-    if not pd.isnull(wp_r04c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c03']''')[0]
-    if not pd.isnull(wp_r04c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c04']''')[0]
-    if not pd.isnull(wp_r04c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c05']''')[0]
-    if not pd.isnull(wp_r04c05):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c05
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c06']''')[0]
-    if not pd.isnull(wp_r04c06):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c06
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c07']''')[0]
-    if not pd.isnull(wp_r04c07):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c07
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c08']''')[0]
-    if not pd.isnull(wp_r04c08):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c08
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c09']''')[0]
-    if not pd.isnull(wp_r04c09):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c09
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c10']''')[0]
-    if not pd.isnull(wp_r04c10):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c10
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c11']''')[0]
-    if not pd.isnull(wp_r04c11):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c11
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r04c12']''')[0]
-    if not pd.isnull(wp_r04c12):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r04c12
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r05c01']''')[0]
-    if not pd.isnull(lp_r05c01):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r05c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r05c02']''')[0]
-    if not pd.isnull(lp_r05c02):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r05c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r05c03']''')[0]
-    if not pd.isnull(lp_r05c03):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r05c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r05c04']''')[0]
-    if not pd.isnull(lp_r05c04):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r05c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r06c01']''')[0]
-    if not pd.isnull(lp_r06c01):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r06c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r06c02']''')[0]
-    if not pd.isnull(lp_r06c02):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r06c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r06c03']''')[0]
-    if not pd.isnull(lp_r06c03):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r06c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r06c04']''')[0]
-    if not pd.isnull(lp_r06c04):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r06c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r07c01']''')[0]
-    if not pd.isnull(lp_r07c01):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r07c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r07c02']''')[0]
-    if not pd.isnull(lp_r07c02):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r07c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r07c03']''')[0]
-    if not pd.isnull(lp_r07c03):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r07c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r07c04']''')[0]
-    if not pd.isnull(lp_r07c04):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r07c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r08c01']''')[0]
-    if not pd.isnull(lp_r08c01):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r08c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r08c02']''')[0]
-    if not pd.isnull(lp_r08c02):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r08c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r08c03']''')[0]
-    if not pd.isnull(lp_r08c03):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r08c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='lp_r08c04']''')[0]
-    if not pd.isnull(lp_r08c04):
-        xml_txt_box.getchildren()[0].text = '%.0f' % lp_r08c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r05c01']''')[0]
-    if not pd.isnull(wp_r05c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r05c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r05c02']''')[0]
-    if not pd.isnull(wp_r05c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r05c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r05c03']''')[0]
-    if not pd.isnull(wp_r05c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r05c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r05c04']''')[0]
-    if not pd.isnull(wp_r05c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r05c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r06c01']''')[0]
-    if not pd.isnull(wp_r06c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r06c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r06c02']''')[0]
-    if not pd.isnull(wp_r06c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r06c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r06c03']''')[0]
-    if not pd.isnull(wp_r06c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r06c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r06c04']''')[0]
-    if not pd.isnull(wp_r06c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r06c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r07c01']''')[0]
-    if not pd.isnull(wp_r07c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r07c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r07c02']''')[0]
-    if not pd.isnull(wp_r07c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r07c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r07c03']''')[0]
-    if not pd.isnull(wp_r07c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r07c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r07c04']''')[0]
-    if not pd.isnull(wp_r07c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r07c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r08c01']''')[0]
-    if not pd.isnull(wp_r08c01):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r08c01
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r08c02']''')[0]
-    if not pd.isnull(wp_r08c02):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r08c02
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r08c03']''')[0]
-    if not pd.isnull(wp_r08c03):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r08c03
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-    xml_txt_box = tree2.findall('''.//*[@id='wp_r08c04']''')[0]
-    if not pd.isnull(wp_r08c04):
-        xml_txt_box.getchildren()[0].text = '%.2f' % wp_r08c04
-    else:
-        xml_txt_box.getchildren()[0].text = '-'
-
-    # svg to string
-    ET.register_namespace("", "http://www.w3.org/2000/svg")
-
-    # Get the paths based on the environment variable
-    #WA_env_paths = os.environ["WA_PATHS"].split(';')
-    #Inkscape_env_path = WA_env_paths[1]
-    Path_Inkscape = get_path('inkscape')
+    
+    p2 = {
+        'ag_water_cons' : ag_water_cons,
+        'lp_r01c01' : lp_r01c01,
+        'lp_r01c02' : lp_r01c02,
+        'lp_r01c03' : lp_r01c03,
+        'lp_r01c04' : lp_r01c04,
+        'lp_r01c05' : lp_r01c05,
+        'lp_r01c06' : lp_r01c06,
+        'lp_r01c07' : lp_r01c07,
+        'lp_r01c08' : lp_r01c08,
+        'lp_r01c09' : lp_r01c09,
+        'lp_r01c10' : lp_r01c10,
+        'lp_r01c11' : lp_r01c11,
+        'lp_r01c12' : lp_r01c12,
+        'lp_r02c01' : lp_r02c01,
+        'lp_r02c02' : lp_r02c02,
+        'lp_r02c03' : lp_r02c03,
+        'lp_r02c04' : lp_r02c04,
+        'lp_r02c05' : lp_r02c05,
+        'lp_r02c06' : lp_r02c06,
+        'lp_r02c07' : lp_r02c07,
+        'lp_r02c08' : lp_r02c08,
+        'lp_r02c09' : lp_r02c09,
+        'lp_r02c10' : lp_r02c10,
+        'lp_r02c11' : lp_r02c11,
+        'lp_r02c12' : lp_r02c12,
+        'lp_r03c01' : lp_r03c01,
+        'lp_r03c02' : lp_r03c02,
+        'lp_r03c03' : lp_r03c03,
+        'lp_r03c04' : lp_r03c04,
+        'lp_r03c05' : lp_r03c05,
+        'lp_r03c06' : lp_r03c06,
+        'lp_r03c07' : lp_r03c07,
+        'lp_r03c08' : lp_r03c08,
+        'lp_r03c09' : lp_r03c09,
+        'lp_r03c10' : lp_r03c10,
+        'lp_r03c11' : lp_r03c11,
+        'lp_r03c12' : lp_r03c12,
+        'lp_r04c01' : lp_r04c01,
+        'lp_r04c02' : lp_r04c02,
+        'lp_r04c03' : lp_r04c03,
+        'lp_r04c04' : lp_r04c04,
+        'lp_r04c05' : lp_r04c05,
+        'lp_r04c06' : lp_r04c06,
+        'lp_r04c07' : lp_r04c07,
+        'lp_r04c08' : lp_r04c08,
+        'lp_r04c09' : lp_r04c09,
+        'lp_r04c10' : lp_r04c10,
+        'lp_r04c11' : lp_r04c11,
+        'lp_r04c12' : lp_r04c12
+        }
+    
+    for key in list(p2.keys()):
+        if tree2.findall(".//*[@id='{0}']".format(key)) != []:
+            xml_txt_box = tree2.findall(".//*[@id='{0}']".format(key))[0]
+            if not pd.isnull(p2[key]):
+                list(xml_txt_box)[0].text = '%.0f' % p2[key]
+            else:
+               list(xml_txt_box)[0].text = '-'      
+    
+    p3 = {
+        'wp_r01c01' : wp_r01c01,
+        'wp_r01c02' : wp_r01c02,
+        'wp_r01c03' : wp_r01c03,
+        'wp_r01c04' : wp_r01c04,
+        'wp_r01c05' : wp_r01c05,
+        'wp_r01c06' : wp_r01c06,
+        'wp_r01c07' : wp_r01c07,
+        'wp_r01c08' : wp_r01c08,
+        'wp_r01c09' : wp_r01c09,
+        'wp_r01c10' : wp_r01c10,
+        'wp_r01c11' : wp_r01c11,
+        'wp_r01c12' : wp_r01c12,
+        'wp_r02c01' : wp_r02c01,
+        'wp_r02c02' : wp_r02c02,
+        'wp_r02c03' : wp_r02c03,
+        'wp_r02c04' : wp_r02c04,
+        'wp_r02c05' : wp_r02c05,
+        'wp_r02c06' : wp_r02c06,
+        'wp_r02c07' : wp_r02c07,
+        'wp_r02c08' : wp_r02c08,
+        'wp_r02c09' : wp_r02c09,
+        'wp_r02c10' : wp_r02c10,
+        'wp_r02c11' : wp_r02c11,
+        'wp_r02c12' : wp_r02c12,
+        'wp_r03c01' : wp_r03c01,
+        'wp_r03c02' : wp_r03c02,
+        'wp_r03c03' : wp_r03c03,
+        'wp_r03c04' : wp_r03c04,
+        'wp_r03c05' : wp_r03c05,
+        'wp_r03c06' : wp_r03c06,
+        'wp_r03c07' : wp_r03c07,
+        'wp_r03c08' : wp_r03c08,
+        'wp_r03c09' : wp_r03c09,
+        'wp_r03c10' : wp_r03c10,
+        'wp_r03c11' : wp_r03c11,
+        'wp_r03c12' : wp_r03c12,
+        'wp_r04c01' : wp_r04c01,
+        'wp_r04c02' : wp_r04c02,
+        'wp_r04c03' : wp_r04c03,
+        'wp_r04c04' : wp_r04c04,
+        'wp_r04c05' : wp_r04c05,
+        'wp_r04c06' : wp_r04c06,
+        'wp_r04c07' : wp_r04c07,
+        'wp_r04c08' : wp_r04c08,
+        'wp_r04c09' : wp_r04c09,
+        'wp_r04c10' : wp_r04c10,
+        'wp_r04c11' : wp_r04c11,
+        'wp_r04c12' : wp_r04c12,
+        'lp_r05c01' : lp_r05c01,
+        'lp_r05c02' : lp_r05c02,
+        'lp_r05c03' : lp_r05c03,
+        'lp_r05c04' : lp_r05c04,
+        'lp_r06c01' : lp_r06c01,
+        'lp_r06c02' : lp_r06c02,
+        'lp_r06c03' : lp_r06c03,
+        'lp_r06c04' : lp_r06c04,
+        'lp_r07c01' : lp_r07c01,
+        'lp_r07c02' : lp_r07c02,
+        'lp_r07c03' : lp_r07c03,
+        'lp_r07c04' : lp_r07c04,
+        'lp_r08c01' : lp_r08c01,
+        'lp_r08c02' : lp_r08c02,
+        'lp_r08c03' : lp_r08c03,
+        'lp_r08c04' : lp_r08c04,
+        'wp_r05c01' : wp_r05c01,
+        'wp_r05c02' : wp_r05c02,
+        'wp_r05c03' : wp_r05c03,
+        'wp_r05c04' : wp_r05c04,
+        'wp_r06c01' : wp_r06c01,
+        'wp_r06c02' : wp_r06c02,
+        'wp_r06c03' : wp_r06c03,
+        'wp_r06c04' : wp_r06c04,
+        'wp_r07c01' : wp_r07c01,
+        'wp_r07c02' : wp_r07c02,
+        'wp_r07c03' : wp_r07c03,
+        'wp_r07c04' : wp_r07c04,
+        'wp_r08c01' : wp_r08c01,
+        'wp_r08c02' : wp_r08c02,
+        'wp_r08c03' : wp_r08c03,
+        'wp_r08c04' : wp_r08c04
+            }
+    for key in list(p3.keys()):
+        if tree2.findall(".//*[@id='{0}']".format(key)) != []:
+            xml_txt_box = tree2.findall(".//*[@id='{0}']".format(key))[0]
+            if not pd.isnull(p3[key]):
+                list(xml_txt_box)[0].text = '%.2f' % p3[key]
+            else:
+               list(xml_txt_box)[0].text = '-'  
 
     # Export svg to png
-    tempout_path = output[0].replace('.png', '_temporary.svg')
-    tree1.write(tempout_path)
-    subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output[0], '-d 300'])
+    tempout_path = output[0].replace('.pdf', '_temporary.svg')
+    tree1.write(tempout_path)    
+    cairosvg.svg2pdf(url=tempout_path, write_to=output[0])    
     os.remove(tempout_path)
-
-        # Export svg to png
-    tempout_path = output[1].replace('.png', '_temporary.svg')
-    tree2.write(tempout_path)
-    subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output[1], '-d 300'])
+    
+    tempout_path = output[1].replace('.pdf', '_temporary.svg')
+    tree2.write(tempout_path)    
+    cairosvg.svg2pdf(url=tempout_path, write_to=output[1])    
     os.remove(tempout_path)
 
     return output

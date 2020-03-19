@@ -4,11 +4,15 @@ Created on Thu Jun 29 15:33:21 2017
 
 @author: cmi001
 """
+from __future__ import print_function
+from builtins import zip
+from builtins import str
+from builtins import map
+from builtins import range
 import os
 import csv
 import datetime
 from datetime import date
-import subprocess
 import shutil
 import tempfile as tf
 import xml.etree.ElementTree as ET
@@ -20,12 +24,15 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy import interpolate
 import ogr
-import types
+import cairosvg
 
 import WA_Hyperloop.becgis as becgis
 from WA_Hyperloop import hyperloop as hl
 import WA_Hyperloop.get_dictionaries as gd
 from WA_Hyperloop.paths import get_path
+import gdal
+gdal.UseExceptions() 
+
 
 def create_sheet5(complete_data, metadata, output_dir, global_data):
     output_folder = os.path.join(output_dir, metadata['name'], 'sheet5')
@@ -37,22 +44,22 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                                                 os.path.join(output_dir, metadata['name'], 'data', 'fractions'),
                                                 global_data['dem'], metadata['lu'],
                                                 metadata['fraction_xs'])
-    if 'SWfile' in metadata.keys():
-        if isinstance(metadata['SWfile'], types.ListType):
+    if 'SWfile' in list(metadata.keys()):
+        if isinstance(metadata['SWfile'], list):
             SW_dates = np.array([datetime.date.fromordinal(t)
                                  for t in nc.MFDataset(metadata['SWfile']).variables['time'][:]])
         else:
             SW_dates = np.array([datetime.date.fromordinal(t)
                                  for t in nc.Dataset(metadata['SWfile']).variables['time'][:]])
 
-        date_list = becgis.CommonDates([complete_data['tr'][1], complete_data['supply_sw'][1],
+        date_list = becgis.common_dates([complete_data['tr'][1], complete_data['supply_sw'][1],
                                         complete_data['fractions'][1],
                                         SW_dates])
     else:
-        date_list = becgis.CommonDates([complete_data['tr'][1], complete_data['supply_sw'][1],
+        date_list = becgis.common_dates([complete_data['tr'][1], complete_data['supply_sw'][1],
                                         complete_data['fractions'][1]])
 
-    date_list = becgis.ConvertDatetimeDate(date_list, out='datetime')
+    date_list = becgis.convert_datetime_date(date_list, out='datetime')
     man_dict = dictionary()
     lu_fh = metadata['lu']
 
@@ -60,9 +67,9 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
     sb_fhs = [metadata['masks'][sb][1] for sb in sb_codes]
     #reproject subbasin masks
     sb_temp = os.path.join(output_folder, 'temp_sb')
-    sb_fhs = becgis.MatchProjResNDV(lu_fh, sb_fhs, sb_temp)
+    sb_fhs = becgis.match_proj_res_ndv(lu_fh, sb_fhs, sb_temp)
     sb_names = [metadata['masks'][sb][0] for sb in sb_codes]
-    sb_fhs_code_names = zip(sb_fhs, sb_codes, sb_names)
+    sb_fhs_code_names = list(zip(sb_fhs, sb_codes, sb_names))
     
     # subbasin connectivity dictionaries
     dico_in = metadata['dico_in']
@@ -80,9 +87,8 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
     withdr_fhs = complete_data['supply_sw'][0].tolist()
     return_gw_sw_fhs = complete_data['return_flow_gw_sw'][0].tolist()
     return_sw_sw_fhs = complete_data['return_flow_sw_sw'][0].tolist()
-
+    AREA = becgis.map_pixel_area_km(lu_fh)
     if discharge_out_from_wp:
-        AREA = becgis.MapPixelAreakm(lu_fh)
         added_inflow = dict()
         discharge_sum = dict()
         interbasin_transfers = dict()
@@ -95,16 +101,16 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
             ro = []
             wth = []
             interbasin_transfers[sb_code] = np.zeros(len(date_list))
-            mask = becgis.OpenAsArray(temp_sb, nan_values=True)
+            mask = becgis.open_as_array(temp_sb, nan_values=True)
 
             for dt in date_list:
                 rofh = np.array(ro_fhs)[complete_data['tr'][1] == dt.date()][0]
                 wfh = np.array(withdr_fhs)[complete_data['supply_sw'][1] == dt.date()][0]
 
-                RO = becgis.OpenAsArray(rofh, nan_values=True) * AREA / 1e6
+                RO = becgis.open_as_array(rofh, nan_values=True) * AREA / 1e6
                 RO[mask != 1] = np.nan
 
-                W = becgis.OpenAsArray(wfh, nan_values=True) * AREA / 1e6
+                W = becgis.open_as_array(wfh, nan_values=True) * AREA / 1e6
                 W[mask != 1] = np.nan
 
                 AVAIL = np.nansum(RO)-np.nansum(W)
@@ -116,7 +122,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
             # Add or remove interbasin transfers as well
             if 0 in in_list:
                 if len(metadata['masks'][sb_code][2]) == 0:
-                    print 'Warning, missing inflow textfile, proceeding without added inflow'
+                    print('Warning, missing inflow textfile, proceeding without added inflow')
                 else:
                     added_inflow[sb_code] = 0
                     for inflow_file in metadata['masks'][sb_code][2]:
@@ -156,8 +162,8 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                 wth = np.array(wth)
                 data = list(np.where(ds < 0)[0])
                 prev_end = 0
-                for k, g in groupby(enumerate(data), lambda (i, x): i-x):
-                    decr_st = map(itemgetter(1), g)
+                for k, g in groupby(enumerate(data), lambda i_x: i_x[0]-i_x[1]):
+                    decr_st = list(map(itemgetter(1), g))
                     start = decr_st[0]
                     end = decr_st[-1]
                     deltaS_season = np.sum(ds[start:end+1])
@@ -166,7 +172,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
                     weight_per_month = avail_per_month/avail_prev_season
                     if start > 0:
                         if avail_prev_season < abs(deltaS_season):
-                            print 'Warning, insufficient runoff and inflows in previous months to meet DeltaS'
+                            print('Warning, insufficient runoff and inflows in previous months to meet DeltaS')
                             ds[prev_end:start] = np.min((avail_per_month, -deltaS_season * weight_per_month), axis=0)
                             discharge_sum[sb_code][prev_end:start] = discharge_sum[sb_code][prev_end:start] - ds[prev_end:start]
                         else:
@@ -191,7 +197,7 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
             in_list = np.array(metadata['dico_in'][sb_code])
             if 0 in in_list:
                 if len(metadata['masks'][2]) == 0:
-                    print 'Warning, missing inflow textfile, proceeding without added inflow'
+                    print('Warning, missing inflow textfile, proceeding without added inflow')
                 else:
                     added_inflow[sb_code] = 0
                     for inflow_file in metadata['masks'][2]:
@@ -199,16 +205,16 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
 
     #Splitting up the outflow into committed/ non_utilizable/ utilizable/ non_recoverable
     split_discharge = discharge_split(global_data["wpl_tif"], global_data["environ_water_req"],
-                                      discharge_sum, ro_fhs, fractions_fhs,
+                                      discharge_sum, ro_fhs, AREA, fractions_fhs,
                                       sb_fhs_code_names, date_list)
     #Add arrows to template when possible (dependent on subbasin structure)
     svg_template = sheet_5_dynamic_arrows(dico_in, dico_out, template,
                                           os.path.join(output_folder, 'temp_sheet5.svg'))
     results = Vividict()
     dt = 0
-    print "starting sheet 5 loop"
+    print("starting sheet 5 loop")
     for d in date_list:
-        print 'sheet 5 {0} started'.format(d)
+        print('sheet 5 {0} started'.format(d))
         datestr1 = "%04d_%02d" %(d.year, d.month)
         datestr2 = "%04d%02d" %(d.year, d.month)
         ystr = "%04d" %(d.year)
@@ -238,17 +244,17 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
         return_gw_sw_fh = return_gw_sw_fhs[np.where([datestr2 in return_gw_sw_fhs[i] for i in range(len(return_gw_sw_fhs))])[0][0]]
         return_sw_sw_fh = return_sw_sw_fhs[np.where([datestr2 in return_sw_sw_fhs[i] for i in range(len(return_sw_sw_fhs))])[0][0]]
 
-        results[ystr][mstr]['surf_runoff'] = lu_type_sum_subbasins(surf_ro_fh, lu_fh, lu_dict, sb_fhs_code_names)
-        results[ystr][mstr]['base_runoff'] = lu_type_sum_subbasins(base_ro_fh, lu_fh, lu_dict, sb_fhs_code_names)
+        results[ystr][mstr]['surf_runoff'] = lu_type_sum_subbasins(surf_ro_fh, lu_fh, AREA, lu_dict, sb_fhs_code_names)
+        results[ystr][mstr]['base_runoff'] = lu_type_sum_subbasins(base_ro_fh, lu_fh, AREA, lu_dict, sb_fhs_code_names)
 
-        results[ystr][mstr]['total_runoff'] = sum_subbasins(ro_fh, sb_fhs_code_names)
+        results[ystr][mstr]['total_runoff'] = sum_subbasins(ro_fh, AREA, sb_fhs_code_names)
 
-        results[ystr][mstr]['withdrawls'] = lu_type_sum_subbasins(withdr_fh, lu_fh, man_dict, sb_fhs_code_names)
+        results[ystr][mstr]['withdrawls'] = lu_type_sum_subbasins(withdr_fh, lu_fh, AREA, man_dict, sb_fhs_code_names)
 
-        results[ystr][mstr]['return_gw_sw'] = sum_subbasins(return_gw_sw_fh, sb_fhs_code_names)
-        results[ystr][mstr]['return_sw_sw'] = sum_subbasins(return_sw_sw_fh, sb_fhs_code_names)
+        results[ystr][mstr]['return_gw_sw'] = sum_subbasins(return_gw_sw_fh, AREA, sb_fhs_code_names)
+        results[ystr][mstr]['return_sw_sw'] = sum_subbasins(return_sw_sw_fh, AREA, sb_fhs_code_names)
 
-        for j in results[ystr][mstr]['surf_runoff'][sb_codes[0]].keys():
+        for j in list(results[ystr][mstr]['surf_runoff'][sb_codes[0]].keys()):
             results[ystr][mstr]['surf_runoff']['basin'][j] = np.nansum([results[ystr][mstr]['surf_runoff'][k][j] for k in sb_codes])
             results[ystr][mstr]['base_runoff']['basin'][j] = np.nansum([results[ystr][mstr]['base_runoff'][k][j] for k in sb_codes])
 
@@ -263,23 +269,23 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
         results[ystr][mstr]['return_sw_sw']['basin'] = np.nansum([results[ystr][mstr]['return_sw_sw'][k] for k in sb_codes])
         results[ystr][mstr]['return_gw_sw']['basin'] = np.nansum([results[ystr][mstr]['return_sw_sw'][k] for k in sb_codes])
 
-        outs = [j for j in dico_out.keys() if 0 in dico_out[j]]
+        outs = [j for j in list(dico_out.keys()) if 0 in dico_out[j]]
         results[ystr][mstr]['total_outflow']['basin'] = np.nansum([results[ystr][mstr]['total_outflow'][sb_codes[k-1]] for k in outs])
         results[ystr][mstr]['committed_outflow']['basin'] = np.nansum([results[ystr][mstr]['committed_outflow'][sb_codes[k-1]] for k in outs])
         results[ystr][mstr]['non_utilizable_outflow']['basin'] = np.nansum([results[ystr][mstr]['non_utilizable_outflow'][sb_codes[k-1]] for k in outs])
         results[ystr][mstr]['utilizable_outflow']['basin'] = np.nansum([results[ystr][mstr]['utilizable_outflow'][sb_codes[k-1]] for k in outs])
         results[ystr][mstr]['non_recoverable_outflow']['basin'] = np.nansum([results[ystr][mstr]['non_recoverable_outflow'][sb_codes[k-1]] for k in outs])
 
-        ins = [j for j in dico_in.keys() if 0 in dico_in[j]]
+        ins = [j for j in list(dico_in.keys()) if 0 in dico_in[j]]
         results[ystr][mstr]['inflows']['basin'] = np.nansum([added_inflow[k][dt] for k in ins]) #np.nansum([added_inflow[k][dt]/1000000000. for k in ins])
 
-        output_fh = output_folder +"\\sheet5_monthly\\sheet5_"+datestr1+".csv"
+        output_fh = os.path.join(output_folder,"sheet5_monthly","sheet5_"+datestr1+".csv")
         create_csv(results[ystr][mstr], output_fh)
-        output = output_folder + '\\sheet5_monthly\\sheet5_'+datestr1+'.png'
+        output = output_fh.replace('csv', 'pdf')
         create_sheet5_svg(metadata['name'], sb_codes, datestr1, 'km3',
                           output_fh, output, svg_template, smart_unit=True)
         dt += 1
-    fhs, dates, years, months, days = becgis.SortFiles(output_folder +"\\sheet5_monthly", [-11, -7], month_position=[-6, -4], extension='csv')
+    fhs, dates, years, months, days = becgis.sort_files(os.path.join(output_folder, "sheet5_monthly"), [-11, -7], month_position=[-6, -4], extension='csv')
     years, counts = np.unique(years, return_counts=True)
 
     fhs = hl.create_csv_yearly(os.path.join(output_folder, "sheet5_monthly"),
@@ -291,12 +297,12 @@ def create_sheet5(complete_data, metadata, output_dir, global_data):
 
     for fh in fhs:
         ystr = os.path.basename(fh).split('_')[-1][:4]
-        output = fh.replace('csv', 'png')
+        output = fh.replace('csv', 'pdf')
         create_sheet5_svg(metadata['name'], sb_codes, ystr, 'km3',
                           fh, output, svg_template, smart_unit=False)
     shutil.rmtree(os.path.split(sb_fhs[0])[0])
     os.remove(svg_template)
-    print 'Done'
+    print('Done')
     return complete_data
 
 def sheet_5_dynamic_arrows(dico_in, dico_out, test_svg, outpath):
@@ -326,16 +332,16 @@ def sheet_5_dynamic_arrows(dico_in, dico_out, test_svg, outpath):
     element6 = '<rect height="3.4260001" id="rect_join_mask" style="stroke-width:0.25686634;fill:#73b7d1;fill-opacity:1" transform="translate(%.2f)" width="1.9203489" x="62.342754" y="150.399" ns1:label="#rect3787" /> '
     element7 = '<rect height="3.4300554" id="rect_low_mask" style="fill:#73b7d1;fill-opacity:1;stroke-width:0.26458332"  transform="translate(%.2f)" width="1.4658357" x="66.373032" y="267.59995" ns1:label="#rect8273" />'
 
-    expected_nb_arrows = np.sum([len(dico_out[k]) for k in dico_out.keys()]) + np.sum([0 in dico_in[k] for k in dico_in.keys()])
+    expected_nb_arrows = np.sum([len(dico_out[k]) for k in list(dico_out.keys())]) + np.sum([0 in dico_in[k] for k in list(dico_in.keys())])
 
     dico_in_b = {}
-    for k in dico_in.keys():
+    for k in list(dico_in.keys()):
         dico_in_b[k] = [dico_in[k][j] for j in range(len(dico_in[k])) if dico_in[k][j] != 0]
     dico_out_b = {}
-    for k in dico_in.keys():
+    for k in list(dico_in.keys()):
         dico_out_b[k] = [dico_out[k][j] for j in range(len(dico_out[k])) if dico_out[k][j] != 0]
 
-    for sb in dico_out.keys():
+    for sb in list(dico_out.keys()):
         if len(dico_out_b[sb]) == 1:
             if (len(dico_in_b[dico_out_b[sb][0]]) == 1) & (dico_out_b[sb] == sb+1):
                 normal_arrow[sb] = 1
@@ -357,10 +363,10 @@ def sheet_5_dynamic_arrows(dico_in, dico_out, test_svg, outpath):
                 for j in range(len(going_to_2)):
                     join_one_top[going_to_2[j]] = 1
 
-    for sb in dico_out.keys():
+    for sb in list(dico_out.keys()):
         if 0 in dico_out[sb]:
             straight_out[sb] = 1
-    for sb in dico_in.keys():
+    for sb in list(dico_in.keys()):
         if 0 in dico_in[sb]:
             straight_in[sb] = 1
 
@@ -371,44 +377,44 @@ def sheet_5_dynamic_arrows(dico_in, dico_out, test_svg, outpath):
     if expected_nb_arrows == actual_nb_arrows:
         tree = ET.parse(test_svg)
         off1 = 22.66
-        for n in normal_arrow.keys():
+        for n in list(normal_arrow.keys()):
             offset = (n - 1) * off1
             child = ET.Element(element1 %offset)
             layer = tree.findall('''*[@id='layer1']''')[0]
             layer.append(child)
 
-        for j in straight_in.keys():
+        for j in list(straight_in.keys()):
             offset = (j - 1) * off1 + .22
             child = ET.Element(element3 %offset)
             layer = tree.findall('''*[@id='layer1']''')[0]
             layer.append(child)
 
-        for j in straight_out.keys():
+        for j in list(straight_out.keys()):
             offset = (j - 1) * off1 + .22
             child = ET.Element(element4 %offset)
             layer = tree.findall('''*[@id='layer1']''')[0]
             layer.append(child)
 
-        for j in join_one_top.keys():
+        for j in list(join_one_top.keys()):
             offset = (j - 1) * off1
             child = ET.Element(element5 %(offset, offset))
             layer = tree.findall('''*[@id='layer1']''')[0]
             layer.append(child)
 
-        for j in join_one_below.keys():
+        for j in list(join_one_below.keys()):
             offset = (j - 1) * off1 +.22
             child = ET.Element(element2 %offset)
             layer = tree.findall('''*[@id='layer1']''')[0]
             layer.append(child)
 
-        for j in straight_in.keys():
+        for j in list(straight_in.keys()):
             if len(dico_in[j]) > 1:
                 offset = (j - 1) * off1
                 child = ET.Element(element6 %offset)
                 layer = tree.findall('''*[@id='layer1']''')[0]
                 layer.append(child)
 
-        for j in straight_out.keys():
+        for j in list(straight_out.keys()):
             if len(dico_out[j]) > 1:
                 offset = (j - 1) * off1
                 child = ET.Element(element7 %offset)
@@ -417,8 +423,8 @@ def sheet_5_dynamic_arrows(dico_in, dico_out, test_svg, outpath):
         tree.write(outpath)
     else:
         shutil.copyfile(test_svg, outpath)
-        print 'ERROR: unexpected number of arrows.\n      Basin structure too complex to generate Sheet7 arrows automatically.\
-               \n      Standard template returned as output.'
+        print('ERROR: unexpected number of arrows.\n      Basin structure too complex to generate Sheet7 arrows automatically.\
+               \n      Standard template returned as output.')
     return outpath
 
 def upstream_of_lu_class(dem_fh, lu_fh, output_folder, clss=63):
@@ -457,14 +463,14 @@ def upstream_of_lu_class(dem_fh, lu_fh, output_folder, clss=63):
         output2 = os.path.join(temp_folder, "catchments.tif")
         temp2_lu_fh = os.path.join(temp_folder, "lu.map")
 
-        srs_lu, ts_lu, te_lu, ndv_lu = becgis.GetGdalWarpInfo(lu_fh)
+        srs_lu, ts_lu, te_lu, ndv_lu = becgis.get_gdalwarp_info(lu_fh)
         te_lu_new = ' '.join([te_lu.split(' ')[0], te_lu.split(' ')[3], te_lu.split(' ')[2], te_lu.split(' ')[1]])
 
-        GeoT = becgis.GetGeoInfo(dem_fh)[4]
+        GeoT = becgis.get_geoinfo(dem_fh)[4]
 
         assert abs(GeoT[1]) == abs(GeoT[5]), "Please provide a DEM with square pixels. Unfortunately, PCRaster does not support rectangular pixels."
 
-        temp1_lu_fh = becgis.MatchProjResNDV(dem_fh, np.array([lu_fh]), temp_folder)
+        temp1_lu_fh = becgis.match_proj_res_ndv(dem_fh, np.array([lu_fh]), temp_folder)
 
         os.system("gdal_translate -projwin {0} -of PCRaster {1} {2}".format(te_lu_new, dem_fh, temp_dem_fh))
         os.system("gdal_translate -projwin {0} -of PCRaster {1} {2}".format(te_lu_new, temp1_lu_fh[0], temp2_lu_fh))
@@ -478,24 +484,24 @@ def upstream_of_lu_class(dem_fh, lu_fh, output_folder, clss=63):
 
         os.system("gdal_translate -of GTiff {0} {1}".format(output1, output2))
 
-        output3 = becgis.MatchProjResNDV(lu_fh, np.array([output2]), extra_temp_folder)
+        output3 = becgis.match_proj_res_ndv(lu_fh, np.array([output2]), extra_temp_folder)
 
-        upstream = becgis.OpenAsArray(output3[0], nan_values=True)
+        upstream = becgis.open_as_array(output3[0], nan_values=True)
         upstream[np.isnan(upstream)] = 0.
         upstream = upstream.astype(np.bool)
 
         shutil.rmtree(temp_folder)
 
         if upstream_fh is not None:
-            driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
-            becgis.CreateGeoTiff(upstream_fh, upstream.astype(np.int8), driver, NDV, xsize, ysize, GeoT, Projection)
+            driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_fh)
+            becgis.create_geotiff(upstream_fh, upstream.astype(np.int8), driver, NDV, xsize, ysize, GeoT, Projection)
     else:
-        dummy = becgis.OpenAsArray(lu_fh, nan_values=True) * 0.
-        dummy = dummy.astype(np.bool)
-        driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
-        becgis.CreateGeoTiff(upstream_fh, dummy.astype(np.int8), driver, NDV, xsize, ysize, GeoT, Projection)
+        dummy = becgis.open_as_array(lu_fh, nan_values=True) * 0.
+        dummy = dummy.astype(np.int16)
+        driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_fh)
+        becgis.create_geotiff(upstream_fh, dummy, driver, NDV, xsize, ysize, GeoT, Projection)
 
-    print "Finished calculating up and downstream areas."
+    print("Finished calculating up and downstream areas.")
     return upstream_fh
 
 def linear_fractions(lu_fh, upstream_fh, proxy_fh, output_fh, xs, unit='km',
@@ -548,15 +554,15 @@ def linear_fractions(lu_fh, upstream_fh, proxy_fh, output_fh, xs, unit='km',
         or beta.
     """
 
-    upstream = becgis.OpenAsArray(upstream_fh).astype(np.bool)
-    distances = becgis.OpenAsArray(proxy_fh, nan_values=True)
+    upstream = becgis.open_as_array(upstream_fh).astype(np.bool)
+    distances = becgis.open_as_array(proxy_fh, nan_values=True)
 
     f1 = interpolate.interp1d([xs[0], xs[1]], [1, 0], kind='linear',
                               bounds_error=False, fill_value=(1, 0))
     f2 = interpolate.interp1d([xs[2], xs[3]], [1, 0], kind='linear',
                               bounds_error=False, fill_value=(1, 0))
 
-    LULC = becgis.OpenAsArray(lu_fh, nan_values=True)
+    LULC = becgis.open_as_array(lu_fh, nan_values=True)
     distances[np.isnan(LULC)] = np.nan
 
     alpha = np.zeros(np.shape(distances))
@@ -602,8 +608,8 @@ def linear_fractions(lu_fh, upstream_fh, proxy_fh, output_fh, xs, unit='km',
         ax2.legend(loc='upper center', bbox_to_anchor=(0.5, -0.11), fancybox=True, shadow=True, ncol=5)
         plt.savefig(graph_fh)
 
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(lu_fh)
-    becgis.CreateGeoTiff(output_fh, alpha, driver, NDV, xsize, ysize, GeoT, Projection)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(lu_fh)
+    becgis.create_geotiff(output_fh, alpha, driver, NDV, xsize, ysize, GeoT, Projection)
 
     if gw_only_classes is not None:
         try:
@@ -612,13 +618,13 @@ def linear_fractions(lu_fh, upstream_fh, proxy_fh, output_fh, xs, unit='km',
                   gw_only_classes['Rainfed Crops'],
                   gw_only_classes['Forest Plantations']]
         except KeyError:
-            print 'Please provide a dictionary with at least the following keys: \
-                Forests, Shrubland, Rainfed Crops and Forest plantations'
+            print('Please provide a dictionary with at least the following keys: \
+                Forests, Shrubland, Rainfed Crops and Forest plantations')
         classes = list(becgis.Flatten(ls))
         becgis.set_classes_to_value(output_fh, lu_fh, classes, value=0)
 
 
-def dryness_fractions(p_fh, std_fh, mean_fh, fractions_dryness_fh, base=-0.5, top=0.0):
+def dryness_fractions(p_fh, std, mean, fractions_dryness_fh, base=-0.5, top=0.0):
     """
     Calculate fractions per pixel based on the distribution P compared to its long-term
     mean and std.
@@ -640,26 +646,26 @@ def dryness_fractions(p_fh, std_fh, mean_fh, fractions_dryness_fh, base=-0.5, to
         Use top to shift the upper boundary. Fractions are one for pixels where the precipitation
         is larger than (mean + top *std). Default is 0.0.
     """
-    P = becgis.OpenAsArray(p_fh, nan_values=True)
-    STD = becgis.OpenAsArray(std_fh, nan_values=True)
-    MEAN = becgis.OpenAsArray(mean_fh, nan_values=True)
+    P = becgis.open_as_array(p_fh, nan_values=True)
+    STD = std
+    MEAN = mean
 
     BASE = MEAN + base * STD
     TOP = MEAN + top * STD
 
     fractions = np.where(P > BASE, np.min([(1.0 / (TOP - BASE)) * (P - BASE), np.ones(np.shape(P))], axis=0), np.zeros(np.shape(P)))
 
-    driver, NDV, xsize, ysize, GeoT, Projection = becgis.GetGeoInfo(p_fh)
+    driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(p_fh)
 
     if not os.path.exists(os.path.split(fractions_dryness_fh)[0]):
         os.makedirs(os.path.split(fractions_dryness_fh)[0])
 
-    becgis.CreateGeoTiff(fractions_dryness_fh, fractions, driver, NDV, xsize, ysize, GeoT, Projection)
+    becgis.create_geotiff(fractions_dryness_fh, fractions, driver, NDV, xsize, ysize, GeoT, Projection)
 
 
 def calc_fractions(p_data, output_dir, dem_fh, lu_fh, fraction_altitude_xs):
     p_fhs, p_dates = p_data
-    dem_reproj_fhs = becgis.MatchProjResNDV(lu_fh, np.array([dem_fh]), output_dir)
+    dem_reproj_fhs = becgis.match_proj_res_ndv(lu_fh, np.array([dem_fh]), output_dir)
     upstream_fh = upstream_of_lu_class(dem_fh, lu_fh, output_dir, clss=None)
     fractions_altitude_fh = os.path.join(output_dir, 'fractions_altitude.tif')
     linear_fractions(lu_fh, upstream_fh, dem_reproj_fhs[0], fractions_altitude_fh,
@@ -670,22 +676,25 @@ def calc_fractions(p_data, output_dir, dem_fh, lu_fh, fraction_altitude_xs):
 
     fractions_fhs = np.array([])
 
-    for date in p_dates:
+    for pdate in p_dates:
         # Create some filehandles to store results.
-        std_fh = os.path.join(output_dir, 'std_means', 'std_{0}.tif'.format(str(date.month).zfill(2)))
-        mean_fh = os.path.join(output_dir, 'std_means', 'mean_{0}.tif'.format(str(date.month).zfill(2)))
-        fractions_dryness_fh = os.path.join(output_dir, 'fractions_dryness', 'fractions_dryness_{0}_{1}.tif'.format(date.year, str(date.month).zfill(2)))
-        fractions_fh = os.path.join(output_dir, 'fractions', 'fractions_{0}_{1}.tif'.format(date.year, str(date.month).zfill(2)))
+        fractions_dryness_fh = os.path.join(output_dir, 'fractions_dryness', 'fractions_dryness_{0}_{1}.tif'.format(pdate.year, str(pdate.month).zfill(2)))
+        fractions_fh = os.path.join(output_dir, 'fractions', 'fractions_{0}_{1}.tif'.format(pdate.year, str(pdate.month).zfill(2)))
 
         # If not done yet, calculate the mean and std of the precipitation for the current month of the year.
-        if not np.any([os.path.isfile(std_fh), os.path.isfile(mean_fh)]):
-            becgis.CalcMeanStd(p_fhs[p_months == date.month], std_fh, mean_fh)
+        std, mean = becgis.calc_mean_std(p_fhs[p_months == pdate.month])
 
         # Determine fractions regarding dryness to determine non-utilizable outflow.
-        dryness_fractions(p_fhs[p_dates == date][0], std_fh, mean_fh,
+        dryness_fractions(p_fhs[p_dates == pdate][0], std, mean,
                           fractions_dryness_fh, base=-0.5, top=0.0)
         # Multiply the altitude and dryness fractions.
-        becgis.Multiply(fractions_altitude_fh, fractions_dryness_fh, fractions_fh)
+        FH1 = becgis.open_as_array(fractions_altitude_fh, nan_values = True)
+        FH2 = becgis.open_as_array(fractions_dryness_fh, nan_values = True)
+        FH3 = FH1 * FH2
+        if not os.path.exists(os.path.split(fractions_fh)[0]):
+            os.makedirs(os.path.split(fractions_fh)[0])
+        driver, NDV, xsize, ysize, GeoT, Projection = becgis.get_geoinfo(fractions_altitude_fh)
+        becgis.create_geotiff(fractions_fh, FH3, driver, NDV, xsize, ysize, GeoT, Projection)
 
         fractions_fhs = np.append(fractions_fhs, fractions_fh)
     return (fractions_fhs, p_dates)
@@ -799,12 +808,11 @@ def create_sheet5_svg(basin, sb_codes, period, units, data, output, template=Fal
         xml_txt_box = tree.findall('''.//*[@id='{0}']'''.format(cell_id))[0]
         xml_txt_box[0].text = '%.1f' %(df_sb.VALUE)
 
-    tempout_path = output.split('.')[0]+'.svg'
-    tree.write(tempout_path)
-    out_png = output
-    subprocess.call([get_path('inkscape'), tempout_path,
-                     '--export-dpi=300', '--export-png='+out_png])
+    tempout_path = output.replace('.pdf', '_temporary.svg')
+    tree.write(tempout_path)    
+    cairosvg.svg2pdf(url=tempout_path, write_to=output)    
     os.remove(tempout_path)
+
     return
 
 class Vividict(dict):
@@ -812,7 +820,7 @@ class Vividict(dict):
         value = self[key] = type(self)()
         return value
 
-def lu_type_sum_subbasins(data_fh, lu_fh, lu_dict, sb_fhs_code_names):
+def lu_type_sum_subbasins(data_fh, lu_fh, AREA, lu_dict, sb_fhs_code_names):
     """
     Returns totals in a dict split by subbasin and land use type (PLU, ULU etc)
     Parameters
@@ -826,26 +834,25 @@ def lu_type_sum_subbasins(data_fh, lu_fh, lu_dict, sb_fhs_code_names):
     sb_fhs_code_names : list of tuples
         (sb_fhs,sb_codes,sb_names)
     """
-    LULC = becgis.OpenAsArray(lu_fh)
-    AREA = becgis.MapPixelAreakm(data_fh)
-    in_data = becgis.OpenAsArray(data_fh, nan_values=True) * AREA / 1e6
+    LULC = becgis.open_as_array(lu_fh)
+    in_data = becgis.open_as_array(data_fh, nan_values=True) * AREA / 1e6
     out_data = Vividict()
-    sb_fhs = zip(*sb_fhs_code_names)[0]
-    sb_codes = zip(*sb_fhs_code_names)[1]
+    sb_fhs = list(zip(*sb_fhs_code_names))[0]
+    sb_codes = list(zip(*sb_fhs_code_names))[1]
     for j in range(len(sb_fhs)):
         sb_fh = sb_fhs[j]
         sb_code = sb_codes[j]
-        sb_mask = becgis.OpenAsArray(sb_fh)
+        sb_mask = becgis.open_as_array(sb_fh)
         sb_mask[sb_mask != 1] = 0
         sb_mask = sb_mask.astype('bool')
-        for lu_class in lu_dict.keys():
+        for lu_class in list(lu_dict.keys()):
             mask = [LULC == value for value in lu_dict[lu_class]]
             mask = (np.sum(mask, axis=0)).astype(bool)
             mask = mask * sb_mask
             out_data[sb_code][lu_class] = np.nansum(in_data[mask])
     return out_data
 
-def sum_subbasins(data_fh, sb_fhs_code_names):
+def sum_subbasins(data_fh, AREA, sb_fhs_code_names):
     """
     Returns totals in a dict split by subbasin
     Parameters
@@ -855,15 +862,14 @@ def sum_subbasins(data_fh, sb_fhs_code_names):
     sb_fhs_code_names : list of tuples
         (sb_fhs,sb_codes,sb_names)
     """
-    AREA = becgis.MapPixelAreakm(data_fh)
-    in_data = becgis.OpenAsArray(data_fh, nan_values=True) * AREA / 1e6
+    in_data = becgis.open_as_array(data_fh, nan_values=True) * AREA / 1e6
     out_data = Vividict()
-    sb_fhs = zip(*sb_fhs_code_names)[0]
-    sb_codes = zip(*sb_fhs_code_names)[1]
+    sb_fhs = list(zip(*sb_fhs_code_names))[0]
+    sb_codes = list(zip(*sb_fhs_code_names))[1]
     for j in range(len(sb_fhs)):
         sb_fh = sb_fhs[j]
         sb_code = sb_codes[j]
-        sb_mask = becgis.OpenAsArray(sb_fh)
+        sb_mask = becgis.open_as_array(sb_fh)
         sb_mask[sb_mask != 1] = 0
         sb_mask = sb_mask.astype('bool')
         out_data[sb_code] = np.nansum(in_data[sb_mask])
@@ -902,22 +908,22 @@ def discharge_at_points(PointShapefile, SWpath):
         sw_time = [date.fromordinal(d) for d in SW.variables['time'][:]]
     return sw_time, discharge_natural, discharge_end, stat_name
 
-def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs,
+def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, AREA, fractions_fhs,
                     sb_fhs_code_names, date_list):
     results = Vividict()
     gray_water_fraction = {}
     ewr_percentage = {}
 
-    sb_fhs = zip(*sb_fhs_code_names)[0]
-    sb_codes = zip(*sb_fhs_code_names)[1]
+    sb_fhs = list(zip(*sb_fhs_code_names))[0]
+    sb_codes = list(zip(*sb_fhs_code_names))[1]
 
     long_disch_mean = np.mean([discharge_sum[k] for k in sb_codes], axis=1)
 
     for i in range(len(sb_fhs)):
         sb_fh = sb_fhs[i]
         sb_code = sb_codes[i]
-        gray_water_fraction[sb_code] = becgis.calc_basinmean(wpl_fh, sb_fh)
-        ewr_percentage[sb_code] = becgis.calc_basinmean(ewr_fh, sb_fh)
+        gray_water_fraction[sb_code] = calc_basinmean(wpl_fh, sb_fh)
+        ewr_percentage[sb_code] = calc_basinmean(ewr_fh, sb_fh)
     t = 0
     for d in date_list:
         datestr1 = "%04d_%02d" %(d.year, d.month)
@@ -925,17 +931,16 @@ def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs,
         ystr = "%04d" %(d.year)
         mstr = "%02d" %(d.month)
         ro_fh = ro_fhs[np.where([datestr2 in ro_fhs[i] for i in range(len(ro_fhs))])[0][0]]
-        AREA = becgis.MapPixelAreakm(ro_fh)
-        runoff = becgis.OpenAsArray(ro_fh, nan_values=True) * AREA / 1e6
+        runoff = becgis.open_as_array(ro_fh, nan_values=True) * AREA / 1e6
         fractions_fh = fractions_fhs[np.where([datestr1 in fractions_fhs[i] for i in range(len(fractions_fhs))])[0][0]]
-        fractions = becgis.OpenAsArray(fractions_fh, nan_values=True)
+        fractions = becgis.open_as_array(fractions_fh, nan_values=True)
 
         non_utilizable_runoff = runoff * fractions
         non_utilizable_sum = {}
         for i in range(len(sb_fhs)):
             sb_fh = sb_fhs[i]
             sb_code = sb_codes[i]
-            sb_mask = becgis.OpenAsArray(sb_fh)
+            sb_mask = becgis.open_as_array(sb_fh)
             sb_mask[sb_mask != 1] = 0
             sb_mask = sb_mask.astype('bool')
             non_utilizable_sum[sb_code] = np.nansum(non_utilizable_runoff[sb_mask])
@@ -954,7 +959,7 @@ def discharge_split(wpl_fh, ewr_fh, discharge_sum, ro_fhs, fractions_fhs,
     return results
 
 
-def create_csv(results, output_fh):
+def create_csv(dresults, output_fh):
     """
     Create the csv-file for sheet 5.
 
@@ -968,28 +973,54 @@ def create_csv(results, output_fh):
     first_row = ['SUBBASIN', 'VARIABLE', 'VALUE', 'UNITS']
     if not os.path.exists(os.path.split(output_fh)[0]):
         os.makedirs(os.path.split(output_fh)[0])
-    csv_file = open(output_fh, 'wb')
-    writer = csv.writer(csv_file, delimiter=';')
+    csv_file = open(output_fh, 'w')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     writer.writerow(first_row)
     lu_classes = ['PROTECTED', 'UTILIZED', 'MODIFIED', 'MANAGED']
-    for sb in results['surf_runoff'].keys():
-        writer.writerow([sb, 'Inflow', '{0}'.format(results['inflows'][sb]), 'km3'])
+    for sb in list(dresults['surf_runoff'].keys()):
+        writer.writerow([sb, 'Inflow', '{0}'.format(dresults['inflows'][sb]), 'km3'])
         for lu_class in lu_classes:
-            writer.writerow([sb, 'Fast Runoff: '+lu_class, '{0}'.format(results['surf_runoff'][sb][lu_class]), 'km3'])
-            writer.writerow([sb, 'Slow Runoff: ' +lu_class, '{0}'.format(results['base_runoff'][sb][lu_class]), 'km3'])
-        writer.writerow([sb, 'Total Runoff', '{0}'.format(results['total_runoff'][sb]), 'km3'])
-        writer.writerow([sb, 'SW withdr. manmade', '{0}'.format(results['withdrawls'][sb]['man']), 'km3'])
-        writer.writerow([sb, 'SW withdr. natural', '{0}'.format(results['withdrawls'][sb]['natural']), 'km3'])
-        writer.writerow([sb, 'SW withdr. total', '{0}'.format(results['withdrawls'][sb]['man']+results['withdrawls'][sb]['natural']), 'km3'])
-        writer.writerow([sb, 'Return Flow SW', '{0}'.format(results['return_sw_sw'][sb]), 'km3'])
-        writer.writerow([sb, 'Return Flow GW', '{0}'.format(results['return_gw_sw'][sb]), 'km3'])
-        writer.writerow([sb, 'Total Return Flow', '{0}'.format(results['return_sw_sw'][sb]+results['return_gw_sw'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Total', '{0}'.format(results['total_outflow'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Committed', '{0}'.format(results['committed_outflow'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Non Recoverable', '{0}'.format(results['non_recoverable_outflow'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Non Utilizable', '{0}'.format(results['non_utilizable_outflow'][sb]), 'km3'])
-        writer.writerow([sb, 'Outflow: Utilizable', '{0}'.format(results['utilizable_outflow'][sb]), 'km3'])
-        writer.writerow([sb,'Interbasin Transfer','{0}'.format(results['interbasin_transfers'][sb]),'km3'])
-        writer.writerow([sb, 'SW storage change', '{0}'.format(results['deltaS'][sb]), 'km3'])
+            writer.writerow([sb, 'Fast Runoff: '+lu_class, '{0}'.format(dresults['surf_runoff'][sb][lu_class]), 'km3'])
+            writer.writerow([sb, 'Slow Runoff: ' +lu_class, '{0}'.format(dresults['base_runoff'][sb][lu_class]), 'km3'])
+        writer.writerow([sb, 'Total Runoff', '{0}'.format(dresults['total_runoff'][sb]), 'km3'])
+        writer.writerow([sb, 'SW withdr. manmade', '{0}'.format(dresults['withdrawls'][sb]['man']), 'km3'])
+        writer.writerow([sb, 'SW withdr. natural', '{0}'.format(dresults['withdrawls'][sb]['natural']), 'km3'])
+        writer.writerow([sb, 'SW withdr. total', '{0}'.format(dresults['withdrawls'][sb]['man']+dresults['withdrawls'][sb]['natural']), 'km3'])
+        writer.writerow([sb, 'Return Flow SW', '{0}'.format(dresults['return_sw_sw'][sb]), 'km3'])
+        writer.writerow([sb, 'Return Flow GW', '{0}'.format(dresults['return_gw_sw'][sb]), 'km3'])
+        writer.writerow([sb, 'Total Return Flow', '{0}'.format(dresults['return_sw_sw'][sb]+dresults['return_gw_sw'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Total', '{0}'.format(dresults['total_outflow'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Committed', '{0}'.format(dresults['committed_outflow'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Non Recoverable', '{0}'.format(dresults['non_recoverable_outflow'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Non Utilizable', '{0}'.format(dresults['non_utilizable_outflow'][sb]), 'km3'])
+        writer.writerow([sb, 'Outflow: Utilizable', '{0}'.format(dresults['utilizable_outflow'][sb]), 'km3'])
+        writer.writerow([sb,'Interbasin Transfer','{0}'.format(dresults['interbasin_transfers'][sb]),'km3'])
+        writer.writerow([sb, 'SW storage change', '{0}'.format(dresults['deltaS'][sb]), 'km3'])
     csv_file.close()
     return
+
+def calc_basinmean(perc_fh, lu_fh):
+    """
+    Calculate the mean of a map after masking out the areas outside an basin defined by
+    its landusemap.
+    
+    Parameters
+    ----------
+    perc_fh : str
+        Filehandle pointing to the map for which the mean needs to be determined.
+    lu_fh : str
+        Filehandle pointing to landusemap.
+    
+    Returns
+    -------
+    percentage : float
+        The mean of the map within the border of the lu_fh.
+    """
+    output_folder = tf.mkdtemp()
+    perc_fh = becgis.match_proj_res_ndv(lu_fh, np.array([perc_fh]), output_folder)
+    EWR = becgis.open_as_array(perc_fh[0], nan_values = True)
+    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    EWR[np.isnan(LULC)] = np.nan
+    percentage = np.nanmean(EWR)
+    shutil.rmtree(output_folder)
+    return percentage

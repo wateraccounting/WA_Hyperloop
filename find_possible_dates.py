@@ -4,6 +4,8 @@ Created on Tue Oct 09 11:56:28 2018
 
 @author: cmi001
 """
+from __future__ import print_function
+from builtins import range
 import os
 
 def find_possible_dates(str_):
@@ -27,10 +29,10 @@ def find_possible_dates(str_):
                 i+=1
             else:
                 options[i] = [index, index+4]
-    if len(options.keys()) == 0:
-        print 'Could not find datestring'
-    elif len(options.keys()) > 1:
-        print 'Multiple possible locations for datestring'
+    if len(list(options.keys())) == 0:
+        print('Could not find datestring')
+    elif len(list(options.keys())) > 1:
+        print('Multiple possible locations for datestring')
     
     return options[0]
 
@@ -56,9 +58,9 @@ def find_possible_dates_negative(str_):
                 i+=1
             else:
                 options[i] = [index, index+4]
-    if len(options.keys()) == 0:
-        print 'Could not find datestring'
-    elif len(options.keys()) > 1:
-        print 'Multiple possible locations for datestring'
+    if len(list(options.keys())) == 0:
+        print('Could not find datestring')
+    elif len(list(options.keys())) > 1:
+        print('Multiple possible locations for datestring')
     
     return options[0]

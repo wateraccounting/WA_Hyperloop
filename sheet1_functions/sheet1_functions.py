@@ -5,14 +5,18 @@ Created on Mon Oct 31 12:11:04 2016
 @author: bec
 """
 
+from builtins import zip
+from builtins import str
 import os
 import calendar
 import csv
 import datetime
 import glob
-import subprocess
+import cairosvg
 import numpy as np
 import pandas as pd
+import tempfile as tf
+import shutil
 import matplotlib.pyplot as plt
 from scipy import interpolate
 import xml.etree.ElementTree as ET
@@ -31,18 +35,18 @@ def sum_ts(flow_csvs):
     for cv in flow_csvs:
         
         coordinates, flow_ts, station_name, unit = pwv.create_dict_entry(cv)
-        flow_dates, flow_values = becgis.Unzip(flow_ts)
-        flow_dates = becgis.ConvertDatetimeDate(flow_dates)
+        flow_dates, flow_values = list(zip(*flow_ts))
+        flow_dates = becgis.convert_datetime_date(flow_dates)
         if unit == 'm3/s':
             flow_values = np.array([flow_values[flow_dates == date] * 60 * 60 * 24 * calendar.monthrange(date.year, date.month)[1] / 1000**3 for date in flow_dates])[:,0]
         flows.append(flow_values)
         dates.append(flow_dates)
        
-    common_dates = becgis.CommonDates(dates)
+    common_dates = becgis.common_dates(dates)
     
     data = np.zeros(np.shape(common_dates))
     for flow_values, flow_dates in zip(flows, dates):
-        add_data = np.array([flow_values[flow_dates == date][0] for date in common_dates])
+        add_data = np.array([np.array(flow_values)[flow_dates == date][0] for date in common_dates])
         data += add_data
 
     return data, common_dates
@@ -70,9 +74,9 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     
     # Determine for what dates all the required data is available.
     if output_fh_in:
-        common_dates = becgis.CommonDates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1], outflow_dates, inflow_dates])
+        common_dates = becgis.common_dates([complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1], outflow_dates, inflow_dates])
     else:
-        common_dates = becgis.CommonDates([complete_data['tr'][1],complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1]]) #, outflow_dates])
+        common_dates = becgis.common_dates([complete_data['tr'][1],complete_data['p'][1], complete_data['etb'][1], complete_data['etg'][1]]) #, outflow_dates])
     
     # Create list to store results.
     all_results = list()
@@ -106,7 +110,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
         create_csv(results, output_fh)
     
         # Plot the actual sheet.
-        create_sheet1_png(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), 'km3/month', output_fh, output_fh.replace('.csv','.png'), template = get_path('sheet1_svg'), smart_unit = True)
+        create_sheet1_png(metadata['name'], '{0}-{1}'.format(date.year, str(date.month).zfill(2)), 'km3/month', output_fh, output_fh.replace('.csv','.pdf'), template = get_path('sheet1_svg'), smart_unit = True)
     
     # Create some graphs.
     plot_storages(all_results, common_dates, metadata['name'], output_folder)
@@ -121,7 +125,7 @@ def create_sheet1(complete_data, metadata, output_dir, global_data):
     
     # Plot yearly sheets.
     for csv_fh in yearly_csv_fhs:
-        create_sheet1_png(metadata['name'], csv_fh[-8:-4], 'km3/year', csv_fh, csv_fh.replace('.csv','.png'), template = get_path('sheet1_svg'), smart_unit = True)
+        create_sheet1_png(metadata['name'], csv_fh[-8:-4], 'km3/year', csv_fh, csv_fh.replace('.csv','.pdf'), template = get_path('sheet1_svg'), smart_unit = True)
         
     return complete_data, all_results
 
@@ -262,17 +266,17 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     # Titles
 
     xml_txt_box = tree.findall('''.//*[@id='basin']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Basin: ' + basin
+    list(xml_txt_box)[0].text = 'Basin: ' + basin
 
     xml_txt_box = tree.findall('''.//*[@id='period']''')[0]
-    xml_txt_box.getchildren()[0].text = 'Period: ' + period
+    list(xml_txt_box)[0].text = 'Period: ' + period
 
     xml_txt_box = tree.findall('''.//*[@id='units']''')[0]
     
     if np.all([smart_unit, scale > 0]):
-        xml_txt_box.getchildren()[0].text = 'Sheet 1: Resource Base ({0} {1})'.format(10**-scale, units)
+        list(xml_txt_box)[0].text = 'Sheet 1: Resource Base ({0} {1})'.format(10**-scale, units)
     else:
-        xml_txt_box.getchildren()[0].text = 'Sheet 1: Resource Base ({0})'.format(units)
+        list(xml_txt_box)[0].text = 'Sheet 1: Resource Base ({0})'.format(units)
 
     # Grey box
 
@@ -284,74 +288,69 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     gross_inflow = external_in + p_recy
 
     delta_s = surf_sto + sto_sink
-
-    xml_txt_box = tree.findall('''.//*[@id='external_in']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, external_in)
-
-    xml_txt_box = tree.findall('''.//*[@id='p_advec']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, p_advec)
-
-    xml_txt_box = tree.findall('''.//*[@id='q_desal']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_desal)
-
-    xml_txt_box = tree.findall('''.//*[@id='q_sw_in']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_sw_in)
-
-    xml_txt_box = tree.findall('''.//*[@id='q_gw_in']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_gw_in)
-
-    xml_txt_box = tree.findall('''.//*[@id='p_recycled']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, p_recy)
-
-    xml_txt_box = tree.findall('''.//*[@id='gross_inflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, gross_inflow)
-
-    if delta_s > 0:
-        xml_txt_box = tree.findall('''.//*[@id='pos_delta_s']''')[0]
-        xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, delta_s)
-
-        xml_txt_box = tree.findall('''.//*[@id='neg_delta_s']''')[0]
-        xml_txt_box.getchildren()[0].text = '0.0'
-    else:
-        xml_txt_box = tree.findall('''.//*[@id='pos_delta_s']''')[0]
-        xml_txt_box.getchildren()[0].text = '0.0'
-
-        xml_txt_box = tree.findall('''.//*[@id='neg_delta_s']''')[0]
-        xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, -delta_s)
-
+    
     # Pink box
 
     net_inflow = gross_inflow + delta_s
+    
+    p1 = {
+            'external_in' : external_in,
+            'p_advec' : p_advec,
+            'q_desal' : q_desal,
+            'q_sw_in' : q_sw_in,
+            'q_gw_in' : q_gw_in,
+            'p_recycled' : p_recy,
+            'gross_inflow' : gross_inflow,
+            'net_inflow' : net_inflow
+            }
+ 
+    for key in list(p1.keys()):
+        if tree.findall(".//*[@id='{0}']".format(key)) != []:
+            xml_txt_box = tree.findall(".//*[@id='{0}']".format(key))[0]
+            if not pd.isnull(p1[key]):
+                list(xml_txt_box)[0].text = '%.1f' % p1[key]
+            else:
+               list(xml_txt_box)[0].text = '-'
+    
+    delta_s_posbox = (delta_s + abs(delta_s))/2
+    delta_s_negbox = abs(delta_s - abs(delta_s))/2 
+    
+    st = {
+            'pos_delta_s' : delta_s_posbox,
+            'neg_delta_s' : delta_s_negbox
+            }
 
-    xml_txt_box = tree.findall('''.//*[@id='net_inflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, net_inflow)
+    for key in list(st.keys()):
+        if tree.findall(".//*[@id='{0}']".format(key)) != []:
+            xml_txt_box = tree.findall(".//*[@id='{0}']".format(key))[0]
+            if not pd.isnull(st[key]):
+                list(xml_txt_box)[0].text = '%.1f' % st[key]
+            else:
+               list(xml_txt_box)[0].text = '-'    
 
     # Light-green box
-
     land_et = et_l_pr + et_l_ut + et_l_mo + et_l_ma
-
-    xml_txt_box = tree.findall('''.//*[@id='landscape_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, land_et)
-
-    xml_txt_box = tree.findall('''.//*[@id='green_protected']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_l_pr)
-
-    xml_txt_box = tree.findall('''.//*[@id='green_utilized']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_l_ut)
-
-    xml_txt_box = tree.findall('''.//*[@id='green_modified']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_l_mo)
-
-    xml_txt_box = tree.findall('''.//*[@id='green_managed']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_l_ma)
-
-    xml_txt_box = tree.findall('''.//*[@id='rainfall_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, land_et)
-
+    
     # landscape et
-    landsc_et = land_et + et_u_pr + et_u_ut + et_u_mo
-    xml_txt_box = tree.findall('''.//*[@id='landscape_et']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, landsc_et)
+    landsc_et = land_et + et_u_pr + et_u_ut + et_u_mo #duplicate number, unneeded
+
+    p2 = {
+            'landscape_et' : land_et,
+            'green_protected' : et_l_pr,
+            'green_utilized' : et_l_ut,
+            'green_modified' : et_l_mo,
+            'green_managed' : et_l_ma,
+            'rainfall_et' : land_et,
+#            'landscape_et' : landsc_et
+            }
+    
+    for key in list(p2.keys()):
+        if tree.findall(".//*[@id='{0}']".format(key)) != []:
+            xml_txt_box = tree.findall(".//*[@id='{0}']".format(key))[0]
+            if not pd.isnull(p2[key]):
+                list(xml_txt_box)[0].text = '%.1f' % p2[key]
+            else:
+               list(xml_txt_box)[0].text = '-'
 
     # Blue box (center)
 
@@ -369,57 +368,43 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     non_cons_water = utilizable_outflow + non_uti + reserved_outflow
 
     non_rec_flow = et_u_pr + et_u_ut + et_u_mo + et_u_ma - inc_et - other_o
+    
+    p3 = {
+            'incremental_etman' : et_manmade,
+            'incremental_etnat' : et_natural,
+            'exploitable_water' : exploitable_water,
+            'available_water' : available_water,
+            'blue_protected' : et_u_pr,
+            'blue_utilized' : et_u_ut,
+            'blue_modified' : et_u_mo,
+            'blue_managed' : et_u_ma,
+            'utilizable_outflow' : utilizable_outflow,
+            'non-utilizable_outflow' : non_uti,
+            'reserved_outflow_max' : reserved_outflow,
+            'non-consumed_water' : non_cons_water,
+            'non-recoverable_flow' : non_rec_flow
+            }
 
-    xml_txt_box = tree.findall('''.//*[@id='incremental_etman']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_manmade)
-
-    xml_txt_box = tree.findall('''.//*[@id='incremental_etnat']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_natural)
-
-    xml_txt_box = tree.findall('''.//*[@id='exploitable_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, exploitable_water)
-
-    xml_txt_box = tree.findall('''.//*[@id='available_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, available_water)
+    for key in list(p3.keys()):
+        if tree.findall(".//*[@id='{0}']".format(key)) != []:
+            xml_txt_box = tree.findall(".//*[@id='{0}']".format(key))[0]
+            if not pd.isnull(p3[key]):
+                list(xml_txt_box)[0].text = '%.1f' % p3[key]
+            else:
+               list(xml_txt_box)[0].text = '-'
 
 #    xml_txt_box = tree.findall('''.//*[@id='utilized_flow']''')[0]
-#    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, utilized_flow)
-
-    xml_txt_box = tree.findall('''.//*[@id='blue_protected']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_u_pr)
-
-    xml_txt_box = tree.findall('''.//*[@id='blue_utilized']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_u_ut)
-
-    xml_txt_box = tree.findall('''.//*[@id='blue_modified']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_u_mo)
-
-    xml_txt_box = tree.findall('''.//*[@id='blue_managed']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_u_ma)
-
-    xml_txt_box = tree.findall('''.//*[@id='utilizable_outflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, utilizable_outflow)
-
-    xml_txt_box = tree.findall('''.//*[@id='non-utilizable_outflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, non_uti)
-
-    xml_txt_box = tree.findall('''.//*[@id='reserved_outflow_max']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, reserved_outflow)
-
-    xml_txt_box = tree.findall('''.//*[@id='non-consumed_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, non_cons_water)
+#    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, utilized_flow)
 
 #    xml_txt_box = tree.findall('''.//*[@id='manmade']''')[0]
-#    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_manmade)
+#    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_manmade)
 #
 #    xml_txt_box = tree.findall('''.//*[@id='natural']''')[0]
-#    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, et_natural)
+#    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, et_natural)
 
 #    xml_txt_box = tree.findall('''.//*[@id='other']''')[0]
-#    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, other_o)
+#    list(xml_txt_box)[0].text = '{1:.{0}f}'.format(decimals, other_o)
 
-    xml_txt_box = tree.findall('''.//*[@id='non-recoverable_flow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, non_rec_flow)
 
     # Blue box (right)
 
@@ -427,51 +412,37 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
 
     q_sw_out = sw_mrs_o + sw_tri_o + sw_usw_o + sw_flo_o 
     q_gw_out = gw_nat_o + gw_uti_o
-
-    xml_txt_box = tree.findall('''.//*[@id='outflow']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, outflow)
-
-    xml_txt_box = tree.findall('''.//*[@id='q_sw_outlet']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_sw_out)
-
-    xml_txt_box = tree.findall('''.//*[@id='q_sw_out']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, basin_transfers)
-
-    xml_txt_box = tree.findall('''.//*[@id='q_gw_out']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, q_gw_out)
-
+    
     # Dark-green box
-
     consumed_water = landsc_et + utilized_flow
     depleted_water = consumed_water - p_recy - non_rec_flow
     external_out = depleted_water + outflow
+    
+    p4 = {
+            'outflow' : outflow,
+            'q_sw_outlet' : q_sw_out,
+            'q_sw_out' : basin_transfers,
+            'q_gw_out' : q_gw_out,
+            'et_recycled' : p_recy,
+            'consumed_water' : consumed_water,
+            'depleted_water' : depleted_water,
+            'external_out' : external_out,
+            'et_out' : depleted_water
+            }
 
-    xml_txt_box = tree.findall('''.//*[@id='et_recycled']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, p_recy)
+    for key in list(p4.keys()):
+        if tree.findall(".//*[@id='{0}']".format(key)) != []:
+            xml_txt_box = tree.findall(".//*[@id='{0}']".format(key))[0]
+            if not pd.isnull(p4[key]):
+                list(xml_txt_box)[0].text = '%.1f' % p4[key]
+            else:
+               list(xml_txt_box)[0].text = '-'
 
-    xml_txt_box = tree.findall('''.//*[@id='consumed_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, consumed_water)
-
-    xml_txt_box = tree.findall('''.//*[@id='depleted_water']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, depleted_water)
-
-    xml_txt_box = tree.findall('''.//*[@id='external_out']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, external_out)
-
-    xml_txt_box = tree.findall('''.//*[@id='et_out']''')[0]
-    xml_txt_box.getchildren()[0].text = '{1:.{0}f}'.format(decimals, depleted_water)
-
-    # svg to string
-    ET.register_namespace("", "http://www.w3.org/2000/svg")
-
-    Path_Inkscape = get_path('inkscape')
-
-    # Export svg to png
-    tempout_path = output.replace('.png', '_temporary.svg')
-    tree.write(tempout_path)
-    subprocess.call([Path_Inkscape,tempout_path,'--export-png='+output, '-d 300'])
-#    os.remove(tempout_path)
-
+#    # Export svg to pdf
+    tempout_path = output.replace('.pdf', '_temporary.svg')
+    tree.write(tempout_path)    
+    cairosvg.svg2pdf(url=tempout_path, write_to=output)    
+    os.remove(tempout_path)
     # Return
     return output
 
@@ -480,14 +451,14 @@ def create_sheet1_in_outflows(sheet5_csv_folder, metadata, output_dir):
     output_fh_in = os.path.join(output_dir,"sheet1_inflow_km3_"+metadata['name']+'.csv')
     output_fh_out = os.path.join(output_dir,"sheet1_outflow_km3_"+metadata['name']+'.csv')
        
-    csv_file_in = open(output_fh_in, 'wb')
-    csv_file_out = open(output_fh_out, 'wb')
+    csv_file_in = open(output_fh_in, 'w')
+    csv_file_out = open(output_fh_out, 'w')
 
-    writer_in = csv.writer(csv_file_in, delimiter=';')
+    writer_in = csv.writer(csv_file_in, delimiter=';', lineterminator = '\n')
     writer_in.writerow(['lat:',0,'lon:',0,'km3 (from Sheet5)'])
     writer_in.writerow(['datetime','year','month','day','data'])
     
-    writer_out = csv.writer(csv_file_out, delimiter=';')
+    writer_out = csv.writer(csv_file_out, delimiter=';', lineterminator = '\n')
     writer_out.writerow(['lat:',0,'lon:',0,'km3 (from Sheet5)'])
     writer_out.writerow(['datetime','year','month','day','data'])
 
@@ -530,7 +501,10 @@ def get_transfers(sheet5_csv_folder):
         df = pd.read_csv(f,sep=';')
         df_basin = df.loc[df.SUBBASIN == 'basin'] 
         df_tran = df_basin.loc[df_basin.VARIABLE == 'Interbasin Transfer'].VALUE
-        transfer_data.append(-float(df_tran))
+        if float(df_tran) > 0:
+            transfer_data.append(-float(df_tran))
+        else:
+            transfer_data.append(0)
         transfer_date.append(date)
     return transfer_data, transfer_date
 
@@ -588,7 +562,7 @@ def plot_parameter(all_results, dates, catchment_name, output_dir, parameter, ex
     fig.autofmt_xdate()
     ax.set_ylim([np.nanmin(ts), np.nanmax(ts)*1.1])
     ax.set_xlim([np.min(dates), np.max(dates)])
-    [i.set_zorder(10) for i in ax.spines.itervalues()]
+    [i.set_zorder(10) for i in ax.spines.values()]
     plt.savefig(os.path.join(output_dir, '{0}.{1}'.format(parameter, extension)))
    
 def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'png'):
@@ -636,7 +610,7 @@ def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'p
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * 0.1,box.width, box.height * 0.9])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.21),fancybox=True, shadow=True, ncol=5)
-    [i.set_zorder(10) for i in ax.spines.itervalues()]
+    [i.set_zorder(10) for i in ax.spines.values()]
     plt.savefig(os.path.join(output_dir, 'water_balance_fullbasin.{0}'.format(extension)))
     
     fig  = plt.figure(figsize = (10,10))
@@ -662,7 +636,7 @@ def plot_storages(all_results, dates, catchment_name, output_dir, extension = 'p
     box = ax.get_position()
     ax.set_position([box.x0, box.y0 + box.height * 0.1,box.width, box.height * 0.9])
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.21),fancybox=True, shadow=True, ncol=5)
-    [i.set_zorder(10) for i in ax.spines.itervalues()]
+    [i.set_zorder(10) for i in ax.spines.values()]
     plt.savefig(os.path.join(output_dir, 'water_storage_fullbasin.{0}'.format(extension)))
 
 
@@ -685,7 +659,7 @@ def calc_ETs(ET, lu_fh, sheet1_lucs):
     et : dict
         Dictionary with the totals per landuse category.
     """
-    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
+    LULC = becgis.open_as_array(lu_fh, nan_values = True)
     et = dict()
     for key in sheet1_lucs:
         classes = sheet1_lucs[key]
@@ -721,10 +695,10 @@ def calc_utilizedflow(incremental_et, other, non_recoverable, other_fractions, n
     uf_mwu : float
         Utilized Flow for Managed Water Use.
     """
-    assert np.sum(other_fractions.values()) == 1.00, "Fractions for other should sum to 1.00."
-    assert np.sum(non_recoverable_fractions.values()) == 1.00, "Fractions for non_recoverable should sum to 1.00."   
+    assert np.sum(list(other_fractions.values())) == 1.00, "Fractions for other should sum to 1.00."
+    assert np.sum(list(non_recoverable_fractions.values())) == 1.00, "Fractions for non_recoverable should sum to 1.00."   
     
-    np.array(incremental_et.values()) + np.array(other_fractions.values()) * other + np.array(non_recoverable_fractions.values()) * non_recoverable
+    np.array(list(incremental_et.values())) + np.array(list(other_fractions.values())) * other + np.array(list(non_recoverable_fractions.values())) * non_recoverable
     
     uf_plu = incremental_et['Protected'] + other_fractions['Protected'] * other + non_recoverable_fractions['Protected'] * non_recoverable
     uf_ulu = incremental_et['Utilized'] + other_fractions['Utilized'] * other + non_recoverable_fractions['Utilized'] * non_recoverable
@@ -772,15 +746,15 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     """
     results = dict()
     
-    LULC = becgis.OpenAsArray(lu_fh, nan_values = True)
-    P = becgis.OpenAsArray(entries['P'], nan_values = True)
-    ETgreen = becgis.OpenAsArray(entries['ETgreen'], nan_values = True)
-    ETblue = becgis.OpenAsArray(entries['ETblue'], nan_values = True)
+    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    P = becgis.open_as_array(entries['P'], nan_values = True)
+    ETgreen = becgis.open_as_array(entries['ETgreen'], nan_values = True)
+    ETblue = becgis.open_as_array(entries['ETblue'], nan_values = True)
     
-    pixel_area = becgis.MapPixelAreakm(lu_fh)
+    pixel_area = becgis.map_pixel_area_km(lu_fh)
 
-    gray_water_fraction = becgis.calc_basinmean(entries['WPL'], lu_fh)
-    ewr_percentage = becgis.calc_basinmean(entries['EWR'], lu_fh)
+    gray_water_fraction = calc_basinmean(entries['WPL'], lu_fh)
+    ewr_percentage = calc_basinmean(entries['EWR'], lu_fh)
     
     P[np.isnan(LULC)] = ETgreen[np.isnan(LULC)] = ETblue[np.isnan(LULC)] = np.nan
     P, ETgreen, ETblue = np.array([P, ETgreen, ETblue]) * 0.000001 * pixel_area
@@ -814,7 +788,7 @@ def calc_sheet1(entries, lu_fh, sheet1_lucs, recycling_ratio, q_outflow, q_out_a
     results['uf_plu'], results['uf_ulu'], results['uf_mlu'], results['uf_mwu'] = calc_utilizedflow(incremental_et, results['other'], results['non_recoverable'], other_fractions, non_recoverable_fractions)
    
     net_inflow = results['p_recycled'] + results['p_advection'] + q_in_sw + q_in_gw + q_in_desal + results['dS'] 
-    consumed_water = np.nansum(landscape_et.values()) + np.nansum(incremental_et.values()) + results['other'] + results['non_recoverable']
+    consumed_water = np.nansum(list(landscape_et.values())) + np.nansum(list(incremental_et.values())) + results['other'] + results['non_recoverable']
     non_consumed_water = net_inflow - consumed_water
     
     results['non_utilizable_outflow'] = min(non_consumed_water, max(0.0, calc_non_utilizable(P, ET, entries['Fractions'])))
@@ -894,8 +868,8 @@ def create_csv(results, output_fh):
     if not os.path.exists(os.path.split(output_fh)[0]):
         os.makedirs(os.path.split(output_fh)[0])
     
-    csv_file = open(output_fh, 'wb')
-    writer = csv.writer(csv_file, delimiter=';')
+    csv_file = open(output_fh, 'w')
+    writer = csv.writer(csv_file, delimiter=';', lineterminator = '\n')
     writer.writerow(first_row)
 
     writer.writerow(['INFLOW', 'PRECIPITATION', 'Rainfall', '{0}'.format(results['p_advection'])])
@@ -954,7 +928,32 @@ def calc_non_utilizable(P, ET, fractions_fh):
     non_utilizable_runoff : float
         The total volume of non_utilizable runoff.
     """
-    fractions = becgis.OpenAsArray(fractions_fh, nan_values = True)
+    fractions = becgis.open_as_array(fractions_fh, nan_values = True)
     non_utilizable_runoff = np.nansum((P - ET) * fractions)
     return non_utilizable_runoff
 
+def calc_basinmean(perc_fh, lu_fh):
+    """
+    Calculate the mean of a map after masking out the areas outside an basin defined by
+    its landusemap.
+    
+    Parameters
+    ----------
+    perc_fh : str
+        Filehandle pointing to the map for which the mean needs to be determined.
+    lu_fh : str
+        Filehandle pointing to landusemap.
+    
+    Returns
+    -------
+    percentage : float
+        The mean of the map within the border of the lu_fh.
+    """
+    output_folder = tf.mkdtemp()
+    perc_fh = becgis.match_proj_res_ndv(lu_fh, np.array([perc_fh]), output_folder)
+    EWR = becgis.open_as_array(perc_fh[0], nan_values = True)
+    LULC = becgis.open_as_array(lu_fh, nan_values = True)
+    EWR[np.isnan(LULC)] = np.nan
+    percentage = np.nanmean(EWR)
+    shutil.rmtree(output_folder)
+    return percentage
