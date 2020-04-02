@@ -335,7 +335,7 @@ def create_sheet1_png(basin, period, units, data, output, template=False , smart
     landsc_et = land_et + et_u_pr + et_u_ut + et_u_mo #duplicate number, unneeded
 
     p2 = {
-            'landscape_et' : land_et,
+            'landscape_et' : landsc_et,
             'green_protected' : et_l_pr,
             'green_utilized' : et_l_ut,
             'green_modified' : et_l_mo,
