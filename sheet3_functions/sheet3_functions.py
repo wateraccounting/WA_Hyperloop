@@ -180,7 +180,7 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
                 writer_b.writerow(["NON-CROP","IRRIGATED","Yield rainfall",TYPE,SUBTYPE,"nan","nan"])
                 writer_b.writerow(["NON-CROP","IRRIGATED","Incremental yield",TYPE,SUBTYPE,"nan","nan"])
                 writer_b.writerow(["NON-CROP","IRRIGATED","Total yield",TYPE,SUBTYPE,"nan","nan"])
-                if TYPE is not 'Livestock':
+                if TYPE != 'Livestock':
                     writer_a.writerow(["NON-CROP","RAINFED","ET",TYPE,SUBTYPE,"nan"])
                     writer_a.writerow(["NON-CROP","IRRIGATED","ET rainfall",TYPE,SUBTYPE,"nan"])
                     writer_a.writerow(["NON-CROP","IRRIGATED","Incremental ET",TYPE,SUBTYPE,"nan"])
@@ -189,7 +189,7 @@ def create_sheet3_csv(wp_y_irrigated_dictionary, wp_y_rainfed_dictionary, wp_y_n
             else:
                 start_dates, end_dates, Y, Yirr, Ypr, WP, WPblue, WPgreen, WC, WCblue, WCgreen  = read_csv(wp_y_non_crop_dictionary[TYPE][SUBTYPE])
                 mask = start_dates == datetime.date(year,1,1)
-                if TYPE is not 'Livestock':
+                if TYPE != 'Livestock':
                     writer_b.writerow(["NON-CROP","RAINFED","Yield",TYPE,SUBTYPE,Y[mask][0],WP[mask][0]])
                     writer_b.writerow(["NON-CROP","IRRIGATED","Yield rainfall",TYPE,SUBTYPE,"nan","nan"])
                     writer_b.writerow(["NON-CROP","IRRIGATED","Incremental yield",TYPE,SUBTYPE,"nan","nan"])
